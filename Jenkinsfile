@@ -67,11 +67,11 @@ pipeline {
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    bat """
+                    bat '''
                     docker build ^
-                      --build-arg BUILD_ENV=${BUILD_ENV} ^
-                      -t %DOCKER_USER%/${IMAGE_NAME}:${IMAGE_TAG} .
-                    """
+                      --build-arg BUILD_ENV=%BUILD_ENV% ^
+                      -t %DOCKER_USER%/%IMAGE_NAME%:%IMAGE_TAG% .
+                    '''
                 }
             }
         }
@@ -83,9 +83,9 @@ pipeline {
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    bat """
+                    bat '''
                     echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin
-                    """
+                    '''
                 }
             }
         }
@@ -97,9 +97,9 @@ pipeline {
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    bat """
-                    docker push %DOCKER_USER%/${IMAGE_NAME}:${IMAGE_TAG}
-                    """
+                    bat '''
+                    docker push %DOCKER_USER%/%IMAGE_NAME%:%IMAGE_TAG%
+                    '''
                 }
             }
         }
@@ -109,12 +109,12 @@ pipeline {
                 branch 'master'
             }
             steps {
-                bat """
+                bat '''
                 git config user.name "jenkins"
                 git config user.email "jenkins@local"
-                git tag v${IMAGE_TAG}
-                git push origin v${IMAGE_TAG}
-                """
+                git tag v%IMAGE_TAG%
+                git push origin v%IMAGE_TAG%
+                '''
             }
         }
 
@@ -125,14 +125,14 @@ pipeline {
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    bat """
-                    powershell -Command "(Get-Content deployment-template.yaml) `
-                    -replace '\\$\\{NAMESPACE\\}', '${KUBE_NAMESPACE}' `
-                    -replace '\\$\\{IMAGE_TAG\\}', '${IMAGE_TAG}' `
-                    -replace '\\$\\{DOCKERHUB_USER\\}', '%DOCKER_USER%' `
-                    -replace '\\$\\{IMAGE_NAME\\}', '${IMAGE_NAME}' |
+                    bat '''
+                    powershell -Command "(Get-Content deployment-template.yaml) ^
+                    -replace '\\$\\{NAMESPACE\\}', '%KUBE_NAMESPACE%' ^
+                    -replace '\\$\\{IMAGE_TAG\\}', '%IMAGE_TAG%' ^
+                    -replace '\\$\\{DOCKERHUB_USER\\}', '%DOCKER_USER%' ^
+                    -replace '\\$\\{IMAGE_NAME\\}', '%IMAGE_NAME%' |
                     Set-Content deployment.yaml"
-                    """
+                    '''
                 }
             }
         }
@@ -145,8 +145,8 @@ pipeline {
 
         stage('Verify') {
             steps {
-                bat "kubectl rollout status deployment/frontend -n ${KUBE_NAMESPACE}"
-                bat "kubectl get pods -n ${KUBE_NAMESPACE}"
+                bat "kubectl rollout status deployment/frontend -n %KUBE_NAMESPACE%"
+                bat "kubectl get pods -n %KUBE_NAMESPACE%"
             }
         }
     }
