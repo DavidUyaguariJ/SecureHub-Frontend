@@ -13,11 +13,10 @@ pipeline {
             steps {
                 script {
                     def branch = env.BRANCH_NAME
-                    def isPR = env.CHANGE_ID != null  // Si tiene CHANGE_ID, es un PR
+                    def isPR = env.CHANGE_ID != null
 
                     if (isPR) {
-                        echo "Pull Request detectado: #${env.CHANGE_ID} de ${env.CHANGE_BRANCH} → ${env.TARGET_BRANCH}"
-                        // Los PRs son permitidos
+                        echo "Pull Request detectado: ${env.CHANGE_ID}"
                     } else if (!(branch == "develop" || branch == "master" || branch.startsWith("stage"))) {
                         error "Branch no permitida: ${branch}"
                     }
@@ -31,56 +30,60 @@ pipeline {
             }
         }
 
-stage('Set Environment') {
-    steps {
-        script {
-            def branch = env.BRANCH_NAME
-            def isPR = env.CHANGE_ID != null
-            def targetBranch = env.TARGET_BRANCH ?: branch
+        stage('Set Environment') {
+            steps {
+                script {
+                    def branch = env.BRANCH_NAME
+                    def isPR = env.CHANGE_ID != null
 
-            echo "BRANCH ORIGINAL: ${branch}"
-            echo "Es PR: ${isPR}"
-            branch = branch.replace("origin/", "")
-            branch = branch.replace("refs/heads/", "")
-            branch = branch.replace("PR-", "")
-            branch = branch.trim()
+                    echo "BRANCH ORIGINAL: ${branch}"
+                    echo "Es PR: ${isPR}"
 
-            if (isPR) {
-                env.BUILD_ENV = "development"
-                env.KUBE_NAMESPACE = "dev"
-                env.IMAGE_TAG = "pr-${env.CHANGE_ID}-${env.BUILD_NUMBER}"
-                echo "=== PULL REQUEST ==="
-                echo "PR #${env.CHANGE_ID} de ${env.CHANGE_BRANCH} hacia ${targetBranch}"
+                    branch = branch.replace("origin/", "")
+                    branch = branch.replace("refs/heads/", "")
+                    branch = branch.replace("PR-", "")
+                    branch = branch.trim()
 
-            } else if (branch == "develop") {
-                env.BUILD_ENV = "development"
-                env.KUBE_NAMESPACE = "dev"
-                env.IMAGE_TAG = "dev-${env.BUILD_NUMBER}"
+                    if (isPR) {
+                        env.BUILD_ENV = "development"
+                        env.KUBE_NAMESPACE = "dev"
+                        env.IMAGE_TAG = "pr-${env.CHANGE_ID}-${env.BUILD_NUMBER}"
 
-            } else if (branch.startsWith("stage")) {
-                env.BUILD_ENV = "pre"
-                env.KUBE_NAMESPACE = "stage"
-                env.IMAGE_TAG = "pre-${env.BUILD_NUMBER}"
+                    } else if (branch == "develop") {
+                        env.BUILD_ENV = "development"
+                        env.KUBE_NAMESPACE = "dev"
+                        env.IMAGE_TAG = "dev-${env.BUILD_NUMBER}"
 
-            } else if (branch == "master") {
-                env.BUILD_ENV = "production"
-                env.KUBE_NAMESPACE = "prod"
+                    } else if (branch.startsWith("stage")) {
+                        env.BUILD_ENV = "pre"
+                        env.KUBE_NAMESPACE = "stage"
+                        env.IMAGE_TAG = "pre-${env.BUILD_NUMBER}"
 
-                def version = bat(
-                    script: "node -p \"require('./package.json').version\"",
-                    returnStdout: true
-                ).trim()
-                env.IMAGE_TAG = version
-            } else {
-                error "Branch no soportada: ${branch}"
+                    } else if (branch == "master") {
+                        env.BUILD_ENV = "production"
+                        env.KUBE_NAMESPACE = "prod"
+
+                        def version = bat(
+                            script: "node -p \"require('./package.json').version\"",
+                            returnStdout: true
+                        ).trim()
+                        env.IMAGE_TAG = version
+                    } else {
+                        env.BUILD_ENV = "development"
+                        env.KUBE_NAMESPACE = "dev"
+                        env.IMAGE_TAG = "pr-${env.BUILD_NUMBER}"
+                    }
+
+                    echo "ENV=${env.BUILD_ENV}"
+                    echo "NAMESPACE=${env.KUBE_NAMESPACE}"
+                    echo "TAG=${env.IMAGE_TAG}"
+
+                    if (!env.BUILD_ENV || !env.IMAGE_TAG) {
+                        error "No se pudieron establecer las variables de entorno"
+                    }
+                }
             }
-
-            echo "ENV=${env.BUILD_ENV}"
-            echo "NAMESPACE=${env.KUBE_NAMESPACE}"
-            echo "TAG=${env.IMAGE_TAG}"
         }
-    }
-}
 
         stage('Build Docker Image') {
             steps {
@@ -89,11 +92,16 @@ stage('Set Environment') {
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    bat """
-                        docker build ^
-                          --build-arg BUILD_ENV=${env.BUILD_ENV} ^
-                          -t ${env.DOCKER_USER}/${env.IMAGE_NAME}:${env.IMAGE_TAG} .
-                    """
+                    script {
+                        echo "Construyendo imagen con BUILD_ENV=${env.BUILD_ENV}"
+                        echo "Tag: ${env.DOCKER_USER}/${env.IMAGE_NAME}:${env.IMAGE_TAG}"
+
+                        bat """
+                            docker build ^
+                              --build-arg BUILD_ENV=${env.BUILD_ENV} ^
+                              -t ${env.DOCKER_USER}/${env.IMAGE_NAME}:${env.IMAGE_TAG} .
+                        """
+                    }
                 }
             }
         }
@@ -151,7 +159,6 @@ stage('Set Environment') {
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
                     script {
-                        // Leer el template y reemplazar variables
                         def template = readFile('deployment-template.yaml')
                         def deployment = template
                             .replace('${NAMESPACE}', env.KUBE_NAMESPACE)
@@ -160,8 +167,7 @@ stage('Set Environment') {
                             .replace('${IMAGE_NAME}', env.IMAGE_NAME)
                         writeFile(file: 'deployment.yaml', text: deployment)
 
-                        echo "=== deployment.yaml generado ==="
-                        echo deployment
+                        echo "deployment.yaml generado correctamente"
                     }
                 }
             }
@@ -189,10 +195,10 @@ stage('Set Environment') {
 
     post {
         success {
-            echo "Deploy exitoso"
+            echo "Pipeline ejecutado exitosamente"
         }
         failure {
-            echo "Falló el pipeline"
+            echo "Pipeline fallo"
         }
     }
 }
