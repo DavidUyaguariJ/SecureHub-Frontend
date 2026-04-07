@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    triggers {
+        pollSCM('')
+    }
+
     environment {
         IMAGE_NAME = "securehub-frontend"
         KUBE_NAMESPACE = ""
@@ -9,17 +13,34 @@ pipeline {
     }
 
     stages {
-        stage('Validate Branch') {
+        stage('Validate Merge') {
             steps {
                 script {
                     def branch = env.BRANCH_NAME
                     def isPR = env.CHANGE_ID != null
 
                     if (isPR) {
-                        echo "Pull Request detectado: ${env.CHANGE_ID}"
-                    } else if (!(branch == "develop" || branch == "master" || branch.startsWith("stage"))) {
+                        echo "Pull Request detectado - cancelando ejecucion"
+                        error "El pipeline solo se ejecuta en merges, no en Pull Requests"
+                    }
+
+                    if (!(branch == "develop" || branch == "master" || branch.startsWith("stage"))) {
                         error "Branch no permitida: ${branch}"
                     }
+
+                    def lastCommit = bat(
+                        script: "git log -1 --pretty=%B",
+                        returnStdout: true
+                    ).trim()
+
+                    def isMergeCommit = lastCommit.startsWith("Merge")
+
+                    if (!isMergeCommit && branch != "master") {
+                        echo "Ultimo commit no es un merge: ${lastCommit}"
+                        error "El pipeline solo se ejecuta en commits de merge"
+                    }
+
+                    echo "Pipeline ejecutandose por merge a ${branch}"
                 }
             }
         }
@@ -34,22 +55,8 @@ pipeline {
             steps {
                 script {
                     def branch = env.BRANCH_NAME
-                    def isPR = env.CHANGE_ID != null
 
-                    echo "BRANCH ORIGINAL: ${branch}"
-                    echo "Es PR: ${isPR}"
-
-                    branch = branch.replace("origin/", "")
-                    branch = branch.replace("refs/heads/", "")
-                    branch = branch.replace("PR-", "")
-                    branch = branch.trim()
-
-                    if (isPR) {
-                        env.BUILD_ENV = "development"
-                        env.KUBE_NAMESPACE = "dev"
-                        env.IMAGE_TAG = "pr-${env.CHANGE_ID}-${env.BUILD_NUMBER}"
-
-                    } else if (branch == "develop") {
+                    if (branch == "develop") {
                         env.BUILD_ENV = "development"
                         env.KUBE_NAMESPACE = "dev"
                         env.IMAGE_TAG = "dev-${env.BUILD_NUMBER}"
@@ -68,10 +75,6 @@ pipeline {
                             returnStdout: true
                         ).trim()
                         env.IMAGE_TAG = version
-                    } else {
-                        env.BUILD_ENV = "development"
-                        env.KUBE_NAMESPACE = "dev"
-                        env.IMAGE_TAG = "pr-${env.BUILD_NUMBER}"
                     }
 
                     echo "ENV=${env.BUILD_ENV}"
@@ -92,16 +95,11 @@ pipeline {
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    script {
-                        echo "Construyendo imagen con BUILD_ENV=${env.BUILD_ENV}"
-                        echo "Tag: ${env.DOCKER_USER}/${env.IMAGE_NAME}:${env.IMAGE_TAG}"
-
-                        bat """
-                            docker build ^
-                              --build-arg BUILD_ENV=${env.BUILD_ENV} ^
-                              -t ${env.DOCKER_USER}/${env.IMAGE_NAME}:${env.IMAGE_TAG} .
-                        """
-                    }
+                    bat """
+                        docker build ^
+                          --build-arg BUILD_ENV=${env.BUILD_ENV} ^
+                          -t ${env.DOCKER_USER}/${env.IMAGE_NAME}:${env.IMAGE_TAG} .
+                    """
                 }
             }
         }
@@ -149,9 +147,6 @@ pipeline {
         }
 
         stage('Prepare Deployment YAML') {
-            when {
-                expression { env.KUBE_NAMESPACE != "" && env.IMAGE_TAG != "" }
-            }
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'dockerhub-creds',
@@ -166,26 +161,18 @@ pipeline {
                             .replace('${DOCKERHUB_USER}', env.DOCKER_USER)
                             .replace('${IMAGE_NAME}', env.IMAGE_NAME)
                         writeFile(file: 'deployment.yaml', text: deployment)
-
-                        echo "deployment.yaml generado correctamente"
                     }
                 }
             }
         }
 
         stage('Deploy') {
-            when {
-                expression { env.KUBE_NAMESPACE != "" && env.IMAGE_TAG != "" }
-            }
             steps {
                 bat "kubectl apply -f deployment.yaml"
             }
         }
 
         stage('Verify') {
-            when {
-                expression { env.KUBE_NAMESPACE != "" && env.IMAGE_TAG != "" }
-            }
             steps {
                 bat "kubectl rollout status deployment/frontend -n ${env.KUBE_NAMESPACE}"
                 bat "kubectl get pods -n ${env.KUBE_NAMESPACE}"
@@ -195,7 +182,7 @@ pipeline {
 
     post {
         success {
-            echo "Pipeline ejecutado exitosamente"
+            echo "Deploy exitoso por merge a ${env.BRANCH_NAME}"
         }
         failure {
             echo "Pipeline fallo"
