@@ -121,9 +121,13 @@ pipeline {
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    bat """
-                        docker push ${env.DOCKER_USER}/${env.IMAGE_NAME}:${env.IMAGE_TAG}
-                    """
+                    script {
+                        def imageTag = env.IMAGE_TAG ?: "dev-${env.BUILD_NUMBER}"
+                        echo "Empujando imagen: ${env.DOCKER_USER}/${env.IMAGE_NAME}:${imageTag}"
+                        bat """
+                            docker push ${env.DOCKER_USER}/${env.IMAGE_NAME}:${imageTag}
+                        """
+                    }
                 }
             }
         }
@@ -150,12 +154,20 @@ pipeline {
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
                     script {
+                        def namespace = env.KUBE_NAMESPACE ?: "dev"
+                        def imageTag = env.IMAGE_TAG ?: "dev-${env.BUILD_NUMBER}"
+                        def dockerUser = env.DOCKER_USER ?: "daviduyaguarij"
+                        def imageName = env.IMAGE_NAME ?: "securehub-frontend"
+
+                        echo "Usando namespace: ${namespace}"
+                        echo "Usando imageTag: ${imageTag}"
+
                         def template = readFile('deployment-template.yaml')
                         def deployment = template
-                            .replace('${NAMESPACE}', env.KUBE_NAMESPACE ?: "dev")
-                            .replace('${IMAGE_TAG}', env.IMAGE_TAG ?: "latest")
-                            .replace('${DOCKERHUB_USER}', env.DOCKER_USER ?: "daviduyaguarij")
-                            .replace('${IMAGE_NAME}', env.IMAGE_NAME ?: "securehub-frontend")
+                            .replace('${NAMESPACE}', namespace)
+                            .replace('${IMAGE_TAG}', imageTag)
+                            .replace('${DOCKERHUB_USER}', dockerUser)
+                            .replace('${IMAGE_NAME}', imageName)
                         writeFile(file: 'deployment.yaml', text: deployment)
 
                         echo "deployment.yaml generado correctamente"
@@ -166,14 +178,21 @@ pipeline {
 
         stage('Deploy') {
             steps {
-                bat "kubectl apply -f deployment.yaml"
+                script {
+                    def namespace = env.KUBE_NAMESPACE ?: "dev"
+                    echo "Desplegando en namespace: ${namespace}"
+                    bat "kubectl apply -f deployment.yaml"
+                }
             }
         }
 
         stage('Verify') {
             steps {
-                bat "kubectl rollout status deployment/frontend -n ${env.KUBE_NAMESPACE}"
-                bat "kubectl get pods -n ${env.KUBE_NAMESPACE}"
+                script {
+                    def namespace = env.KUBE_NAMESPACE ?: "dev"
+                    bat "kubectl rollout status deployment/frontend -n ${namespace}"
+                    bat "kubectl get pods -n ${namespace}"
+                }
             }
         }
     }
