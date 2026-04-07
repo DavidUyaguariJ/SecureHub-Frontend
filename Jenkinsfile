@@ -74,11 +74,16 @@ pipeline {
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    bat """
-                        docker build ^
-                          --build-arg BUILD_ENV=${env.BUILD_ENV} ^
-                          -t ${env.DOCKER_USER}/${env.IMAGE_NAME}:${env.IMAGE_TAG} .
-                    """
+                    script {
+                        def buildEnv = env.BUILD_ENV ?: "development"
+                        echo "Construyendo con configuracion: ${buildEnv}"
+
+                        bat """
+                            docker build ^
+                              --build-arg BUILD_ENV=${buildEnv} ^
+                              -t ${env.DOCKER_USER}/${env.IMAGE_NAME}:${env.IMAGE_TAG} .
+                        """
+                    }
                 }
             }
         }
