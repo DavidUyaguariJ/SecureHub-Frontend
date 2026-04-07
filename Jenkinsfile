@@ -2,11 +2,25 @@ pipeline {
     agent any
 
     environment {
-        DOCKERHUB_USER = "daviduyaguarij"
         IMAGE_NAME = "securehub-frontend"
+        KUBE_NAMESPACE = ""
+        BUILD_ENV = ""
+        IMAGE_TAG = ""
     }
 
     stages {
+
+        stage('Validate Branch') {
+            steps {
+                script {
+                    if (!(env.BRANCH_NAME == "develop" ||
+                          env.BRANCH_NAME == "master" ||
+                          env.BRANCH_NAME.startsWith("stage"))) {
+                        error "Branch no permitida: ${env.BRANCH_NAME}"
+                    }
+                }
+            }
+        }
 
         stage('Checkout') {
             steps {
@@ -17,12 +31,6 @@ pipeline {
         stage('Set Environment') {
             steps {
                 script {
-
-                    def version = sh(
-                        script: "node -p \"require('./package.json').version\"",
-                        returnStdout: true
-                    ).trim()
-
                     if (env.BRANCH_NAME == "develop") {
                         env.BUILD_ENV = "development"
                         env.KUBE_NAMESPACE = "dev"
@@ -31,32 +39,40 @@ pipeline {
                     } else if (env.BRANCH_NAME.startsWith("stage")) {
                         env.BUILD_ENV = "pre"
                         env.KUBE_NAMESPACE = "stage"
-                        env.IMAGE_TAG = "pre-${version}"
+                        env.IMAGE_TAG = "pre-${env.BUILD_NUMBER}"
 
                     } else if (env.BRANCH_NAME == "master") {
                         env.BUILD_ENV = "production"
                         env.KUBE_NAMESPACE = "prod"
-                        env.IMAGE_TAG = version
 
-                    } else {
-                        error "Rama no soportada: ${env.BRANCH_NAME}"
+                        def version = bat(
+                            script: "node -p \"require('./package.json').version\"",
+                            returnStdout: true
+                        ).trim()
+
+                        env.IMAGE_TAG = version
                     }
 
-                    echo "Branch: ${env.BRANCH_NAME}"
-                    echo "BUILD_ENV: ${env.BUILD_ENV}"
-                    echo "NAMESPACE: ${env.KUBE_NAMESPACE}"
-                    echo "IMAGE_TAG: ${env.IMAGE_TAG}"
+                    echo "ENV=${env.BUILD_ENV}"
+                    echo "NAMESPACE=${env.KUBE_NAMESPACE}"
+                    echo "TAG=${env.IMAGE_TAG}"
                 }
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh """
-                docker build \
-                  --build-arg BUILD_ENV=${BUILD_ENV} \
-                  -t ${DOCKERHUB_USER}/${IMAGE_NAME}:${IMAGE_TAG} .
-                """
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    bat """
+                    docker build ^
+                      --build-arg BUILD_ENV=${BUILD_ENV} ^
+                      -t %DOCKER_USER%/${IMAGE_NAME}:${IMAGE_TAG} .
+                    """
+                }
             }
         }
 
@@ -64,11 +80,11 @@ pipeline {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'dockerhub-creds',
-                    usernameVariable: 'USER',
-                    passwordVariable: 'PASS'
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    sh """
-                    echo \$PASS | docker login -u \$USER --password-stdin
+                    bat """
+                    echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin
                     """
                 }
             }
@@ -76,7 +92,15 @@ pipeline {
 
         stage('Push Image') {
             steps {
-                sh "docker push ${DOCKERHUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    bat """
+                    docker push %DOCKER_USER%/${IMAGE_NAME}:${IMAGE_TAG}
+                    """
+                }
             }
         }
 
@@ -85,13 +109,29 @@ pipeline {
                 branch 'master'
             }
             steps {
-                script {
-                    sh """
-                    git config user.name "jenkins"
-                    git config user.email "jenkins@local"
+                bat """
+                git config user.name "jenkins"
+                git config user.email "jenkins@local"
+                git tag v${IMAGE_TAG}
+                git push origin v${IMAGE_TAG}
+                """
+            }
+        }
 
-                    git tag v${IMAGE_TAG}
-                    git push origin v${IMAGE_TAG}
+        stage('Prepare Deployment YAML') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    bat """
+                    powershell -Command "(Get-Content deployment-template.yaml) `
+                    -replace '\\$\\{NAMESPACE\\}', '${KUBE_NAMESPACE}' `
+                    -replace '\\$\\{IMAGE_TAG\\}', '${IMAGE_TAG}' `
+                    -replace '\\$\\{DOCKERHUB_USER\\}', '%DOCKER_USER%' `
+                    -replace '\\$\\{IMAGE_NAME\\}', '${IMAGE_NAME}' |
+                    Set-Content deployment.yaml"
                     """
                 }
             }
@@ -99,24 +139,24 @@ pipeline {
 
         stage('Deploy') {
             steps {
-                sh """
-                export NAMESPACE=${KUBE_NAMESPACE}
-                export IMAGE_TAG=${IMAGE_TAG}
-                export DOCKERHUB_USER=${DOCKERHUB_USER}
-                export IMAGE_NAME=${IMAGE_NAME}
-
-                envsubst < deployment-template.yaml | kubectl apply -f -
-                kubectl apply -f service.yaml
-            """
+                bat "kubectl apply -f deployment.yaml"
             }
         }
 
         stage('Verify') {
             steps {
-                sh """
-                kubectl rollout status deployment/frontend -n ${KUBE_NAMESPACE}
-                """
+                bat "kubectl rollout status deployment/frontend -n ${KUBE_NAMESPACE}"
+                bat "kubectl get pods -n ${KUBE_NAMESPACE}"
             }
+        }
+    }
+
+    post {
+        success {
+            echo "Deploy exitoso"
+        }
+        failure {
+            echo "Falló el pipeline"
         }
     }
 }
