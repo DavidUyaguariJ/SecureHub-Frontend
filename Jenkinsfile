@@ -9,14 +9,17 @@ pipeline {
     }
 
     stages {
-
         stage('Validate Branch') {
             steps {
                 script {
-                    if (!(env.BRANCH_NAME == "develop" ||
-                          env.BRANCH_NAME == "master" ||
-                          env.BRANCH_NAME.startsWith("stage"))) {
-                        error "Branch no permitida: ${env.BRANCH_NAME}"
+                    def branch = env.BRANCH_NAME
+                    def isPR = env.CHANGE_ID != null  // Si tiene CHANGE_ID, es un PR
+
+                    if (isPR) {
+                        echo "Pull Request detectado: #${env.CHANGE_ID} de ${env.CHANGE_BRANCH} → ${env.TARGET_BRANCH}"
+                        // Los PRs son permitidos
+                    } else if (!(branch == "develop" || branch == "master" || branch.startsWith("stage"))) {
+                        error "Branch no permitida: ${branch}"
                     }
                 }
             }
@@ -28,45 +31,56 @@ pipeline {
             }
         }
 
-    stage('Set Environment') {
-        steps {
-            script {
-                def branch = env.BRANCH_NAME
-                echo "BRANCH ORIGINAL: ${branch}"
-                branch = branch.replace("origin/", "")
-                branch = branch.replace("refs/heads/", "")
-                branch = branch.trim()
-                echo "BRANCH LIMPIA: ${branch}"
-                if (branch == "develop") {
-                    env.BUILD_ENV = "development"
-                    env.KUBE_NAMESPACE = "dev"
-                    env.IMAGE_TAG = "dev-${env.BUILD_NUMBER}"
+stage('Set Environment') {
+    steps {
+        script {
+            def branch = env.BRANCH_NAME
+            def isPR = env.CHANGE_ID != null
+            def targetBranch = env.TARGET_BRANCH ?: branch
 
-                } else if (branch.startsWith("stage")) {
-                    env.BUILD_ENV = "pre"
-                    env.KUBE_NAMESPACE = "stage"
-                    env.IMAGE_TAG = "pre-${env.BUILD_NUMBER}"
+            echo "BRANCH ORIGINAL: ${branch}"
+            echo "Es PR: ${isPR}"
+            branch = branch.replace("origin/", "")
+            branch = branch.replace("refs/heads/", "")
+            branch = branch.replace("PR-", "")
+            branch = branch.trim()
 
-                } else if (branch == "master") {
-                    env.BUILD_ENV = "production"
-                    env.KUBE_NAMESPACE = "prod"
+            if (isPR) {
+                env.BUILD_ENV = "development"
+                env.KUBE_NAMESPACE = "dev"
+                env.IMAGE_TAG = "pr-${env.CHANGE_ID}-${env.BUILD_NUMBER}"
+                echo "=== PULL REQUEST ==="
+                echo "PR #${env.CHANGE_ID} de ${env.CHANGE_BRANCH} hacia ${targetBranch}"
 
-                    def version = bat(
-                        script: "node -p \"require('./package.json').version\"",
-                        returnStdout: true
-                    ).trim()
+            } else if (branch == "develop") {
+                env.BUILD_ENV = "development"
+                env.KUBE_NAMESPACE = "dev"
+                env.IMAGE_TAG = "dev-${env.BUILD_NUMBER}"
 
-                    env.IMAGE_TAG = version
-                } else {
-                    error "Branch no soportada: ${branch}"
-                }
+            } else if (branch.startsWith("stage")) {
+                env.BUILD_ENV = "pre"
+                env.KUBE_NAMESPACE = "stage"
+                env.IMAGE_TAG = "pre-${env.BUILD_NUMBER}"
 
-                echo "ENV=${env.BUILD_ENV}"
-                echo "NAMESPACE=${env.KUBE_NAMESPACE}"
-                echo "TAG=${env.IMAGE_TAG}"
+            } else if (branch == "master") {
+                env.BUILD_ENV = "production"
+                env.KUBE_NAMESPACE = "prod"
+
+                def version = bat(
+                    script: "node -p \"require('./package.json').version\"",
+                    returnStdout: true
+                ).trim()
+                env.IMAGE_TAG = version
+            } else {
+                error "Branch no soportada: ${branch}"
             }
+
+            echo "ENV=${env.BUILD_ENV}"
+            echo "NAMESPACE=${env.KUBE_NAMESPACE}"
+            echo "TAG=${env.IMAGE_TAG}"
         }
     }
+}
 
         stage('Build Docker Image') {
             steps {
@@ -75,11 +89,11 @@ pipeline {
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    bat '''
-                    docker build ^
-                      --build-arg BUILD_ENV=%BUILD_ENV% ^
-                      -t %DOCKER_USER%/%IMAGE_NAME%:%IMAGE_TAG% .
-                    '''
+                    bat """
+                        docker build ^
+                          --build-arg BUILD_ENV=${env.BUILD_ENV} ^
+                          -t ${env.DOCKER_USER}/${env.IMAGE_NAME}:${env.IMAGE_TAG} .
+                    """
                 }
             }
         }
@@ -91,9 +105,9 @@ pipeline {
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    bat '''
-                    echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin
-                    '''
+                    bat """
+                        echo ${env.DOCKER_PASS} | docker login -u ${env.DOCKER_USER} --password-stdin
+                    """
                 }
             }
         }
@@ -105,9 +119,9 @@ pipeline {
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    bat '''
-                    docker push %DOCKER_USER%/%IMAGE_NAME%:%IMAGE_TAG%
-                    '''
+                    bat """
+                        docker push ${env.DOCKER_USER}/${env.IMAGE_NAME}:${env.IMAGE_TAG}
+                    """
                 }
             }
         }
@@ -117,44 +131,58 @@ pipeline {
                 branch 'master'
             }
             steps {
-                bat '''
-                git config user.name "jenkins"
-                git config user.email "jenkins@local"
-                git tag v%IMAGE_TAG%
-                git push origin v%IMAGE_TAG%
-                '''
+                bat """
+                    git config user.name "jenkins"
+                    git config user.email "jenkins@local"
+                    git tag v${env.IMAGE_TAG}
+                    git push origin v${env.IMAGE_TAG}
+                """
             }
         }
 
         stage('Prepare Deployment YAML') {
+            when {
+                expression { env.KUBE_NAMESPACE != "" && env.IMAGE_TAG != "" }
+            }
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'dockerhub-creds',
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    bat '''
-                    powershell -Command "(Get-Content deployment-template.yaml) ^
-                    -replace '\\$\\{NAMESPACE\\}', '%KUBE_NAMESPACE%' ^
-                    -replace '\\$\\{IMAGE_TAG\\}', '%IMAGE_TAG%' ^
-                    -replace '\\$\\{DOCKERHUB_USER\\}', '%DOCKER_USER%' ^
-                    -replace '\\$\\{IMAGE_NAME\\}', '%IMAGE_NAME%' |
-                    Set-Content deployment.yaml"
-                    '''
+                    script {
+                        // Leer el template y reemplazar variables
+                        def template = readFile('deployment-template.yaml')
+                        def deployment = template
+                            .replace('${NAMESPACE}', env.KUBE_NAMESPACE)
+                            .replace('${IMAGE_TAG}', env.IMAGE_TAG)
+                            .replace('${DOCKERHUB_USER}', env.DOCKER_USER)
+                            .replace('${IMAGE_NAME}', env.IMAGE_NAME)
+                        writeFile(file: 'deployment.yaml', text: deployment)
+
+                        echo "=== deployment.yaml generado ==="
+                        echo deployment
+                    }
                 }
             }
         }
 
         stage('Deploy') {
+            when {
+                expression { env.KUBE_NAMESPACE != "" && env.IMAGE_TAG != "" }
+            }
             steps {
                 bat "kubectl apply -f deployment.yaml"
             }
         }
 
         stage('Verify') {
+            when {
+                expression { env.KUBE_NAMESPACE != "" && env.IMAGE_TAG != "" }
+            }
             steps {
-                bat "kubectl rollout status deployment/frontend -n %KUBE_NAMESPACE%"
-                bat "kubectl get pods -n %KUBE_NAMESPACE%"
+                bat "kubectl rollout status deployment/frontend -n ${env.KUBE_NAMESPACE}"
+                bat "kubectl get pods -n ${env.KUBE_NAMESPACE}"
             }
         }
     }
