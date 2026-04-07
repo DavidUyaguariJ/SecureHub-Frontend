@@ -28,37 +28,45 @@ pipeline {
             }
         }
 
-        stage('Set Environment') {
-            steps {
-                script {
-                    if (env.BRANCH_NAME == "develop") {
-                        env.BUILD_ENV = "development"
-                        env.KUBE_NAMESPACE = "dev"
-                        env.IMAGE_TAG = "dev-${env.BUILD_NUMBER}"
+    stage('Set Environment') {
+        steps {
+            script {
+                def branch = env.BRANCH_NAME
+                echo "BRANCH ORIGINAL: ${branch}"
+                branch = branch.replace("origin/", "")
+                branch = branch.replace("refs/heads/", "")
+                branch = branch.trim()
+                echo "BRANCH LIMPIA: ${branch}"
+                if (branch == "develop") {
+                    env.BUILD_ENV = "development"
+                    env.KUBE_NAMESPACE = "dev"
+                    env.IMAGE_TAG = "dev-${env.BUILD_NUMBER}"
 
-                    } else if (env.BRANCH_NAME.startsWith("stage")) {
-                        env.BUILD_ENV = "pre"
-                        env.KUBE_NAMESPACE = "stage"
-                        env.IMAGE_TAG = "pre-${env.BUILD_NUMBER}"
+                } else if (branch.startsWith("stage")) {
+                    env.BUILD_ENV = "pre"
+                    env.KUBE_NAMESPACE = "stage"
+                    env.IMAGE_TAG = "pre-${env.BUILD_NUMBER}"
 
-                    } else if (env.BRANCH_NAME == "master") {
-                        env.BUILD_ENV = "production"
-                        env.KUBE_NAMESPACE = "prod"
+                } else if (branch == "master") {
+                    env.BUILD_ENV = "production"
+                    env.KUBE_NAMESPACE = "prod"
 
-                        def version = bat(
-                            script: "node -p \"require('./package.json').version\"",
-                            returnStdout: true
-                        ).trim()
+                    def version = bat(
+                        script: "node -p \"require('./package.json').version\"",
+                        returnStdout: true
+                    ).trim()
 
-                        env.IMAGE_TAG = version
-                    }
-
-                    echo "ENV=${env.BUILD_ENV}"
-                    echo "NAMESPACE=${env.KUBE_NAMESPACE}"
-                    echo "TAG=${env.IMAGE_TAG}"
+                    env.IMAGE_TAG = version
+                } else {
+                    error "Branch no soportada: ${branch}"
                 }
+
+                echo "ENV=${env.BUILD_ENV}"
+                echo "NAMESPACE=${env.KUBE_NAMESPACE}"
+                echo "TAG=${env.IMAGE_TAG}"
             }
         }
+    }
 
         stage('Build Docker Image') {
             steps {
