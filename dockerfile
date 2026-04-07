@@ -4,9 +4,9 @@ WORKDIR /app
 
 # Copiar archivos de dependencias
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 
-# Copiar código fuente
+# Copiar codigo fuente
 COPY . .
 
 # Pasar argumento de entorno
@@ -16,11 +16,10 @@ RUN npm run build -- --configuration=${BUILD_ENV}
 # Etapa 2: Servidor Nginx
 FROM nginx:alpine
 
-# Copiar los archivos construidos (sin nginx.conf personalizado)
+# Copiar los archivos construidos
 COPY --from=build /app/dist/securehub-frontend/browser /usr/share/nginx/html
 
 # Exponer puerto
 EXPOSE 80
 
-# Comando por defecto de Nginx
 CMD ["nginx", "-g", "daemon off;"]

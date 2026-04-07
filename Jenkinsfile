@@ -60,9 +60,9 @@ pipeline {
                         env.IMAGE_TAG = version
                     }
 
-                    echo "ENV=${env.BUILD_ENV}"
-                    echo "NAMESPACE=${env.KUBE_NAMESPACE}"
-                    echo "TAG=${env.IMAGE_TAG}"
+                    echo "BUILD_ENV: ${env.BUILD_ENV}"
+                    echo "KUBE_NAMESPACE: ${env.KUBE_NAMESPACE}"
+                    echo "IMAGE_TAG: ${env.IMAGE_TAG}"
                 }
             }
         }
