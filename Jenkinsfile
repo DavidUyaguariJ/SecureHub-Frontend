@@ -38,27 +38,34 @@ pipeline {
             steps {
                 script {
                     def branch = env.BRANCH_NAME
+                    def buildEnv = ""
+                    def kubeNamespace = ""
+                    def imageTag = ""
 
                     if (branch == "develop") {
-                        env.BUILD_ENV = "development"
-                        env.KUBE_NAMESPACE = "dev"
-                        env.IMAGE_TAG = "dev-${env.BUILD_NUMBER}"
+                        buildEnv = "development"
+                        kubeNamespace = "dev"
+                        imageTag = "dev-${env.BUILD_NUMBER}"
 
                     } else if (branch.startsWith("stage")) {
-                        env.BUILD_ENV = "pre"
-                        env.KUBE_NAMESPACE = "stage"
-                        env.IMAGE_TAG = "pre-${env.BUILD_NUMBER}"
+                        buildEnv = "pre"
+                        kubeNamespace = "stage"
+                        imageTag = "stage-${env.BUILD_NUMBER}"
 
                     } else if (branch == "master") {
-                        env.BUILD_ENV = "production"
-                        env.KUBE_NAMESPACE = "prod"
+                        buildEnv = "production"
+                        kubeNamespace = "prod"
 
                         def version = bat(
                             script: "node -p \"require('./package.json').version\"",
                             returnStdout: true
                         ).trim()
-                        env.IMAGE_TAG = version
+                        imageTag = version
                     }
+
+                    env.BUILD_ENV = buildEnv
+                    env.KUBE_NAMESPACE = kubeNamespace
+                    env.IMAGE_TAG = imageTag
 
                     echo "BUILD_ENV: ${env.BUILD_ENV}"
                     echo "KUBE_NAMESPACE: ${env.KUBE_NAMESPACE}"
@@ -76,13 +83,18 @@ pipeline {
                 )]) {
                     script {
                         def buildEnv = env.BUILD_ENV ?: "development"
+                        def imageTag = env.IMAGE_TAG ?: "dev-${env.BUILD_NUMBER}"
+
                         echo "Construyendo con configuracion: ${buildEnv}"
+                        echo "Tag: ${env.DOCKER_USER}/${env.IMAGE_NAME}:${imageTag}"
 
                         bat """
                             docker build ^
                               --build-arg BUILD_ENV=${buildEnv} ^
-                              -t ${env.DOCKER_USER}/${env.IMAGE_NAME}:${env.IMAGE_TAG} .
+                              -t ${env.DOCKER_USER}/${env.IMAGE_NAME}:${imageTag} .
                         """
+
+                        env.IMAGE_TAG = imageTag
                     }
                 }
             }
@@ -140,11 +152,13 @@ pipeline {
                     script {
                         def template = readFile('deployment-template.yaml')
                         def deployment = template
-                            .replace('${NAMESPACE}', env.KUBE_NAMESPACE)
-                            .replace('${IMAGE_TAG}', env.IMAGE_TAG)
-                            .replace('${DOCKERHUB_USER}', env.DOCKER_USER)
-                            .replace('${IMAGE_NAME}', env.IMAGE_NAME)
+                            .replace('${NAMESPACE}', env.KUBE_NAMESPACE ?: "dev")
+                            .replace('${IMAGE_TAG}', env.IMAGE_TAG ?: "latest")
+                            .replace('${DOCKERHUB_USER}', env.DOCKER_USER ?: "daviduyaguarij")
+                            .replace('${IMAGE_NAME}', env.IMAGE_NAME ?: "securehub-frontend")
                         writeFile(file: 'deployment.yaml', text: deployment)
+
+                        echo "deployment.yaml generado correctamente"
                     }
                 }
             }
