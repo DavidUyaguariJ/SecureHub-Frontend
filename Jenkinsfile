@@ -1,10 +1,6 @@
 pipeline {
     agent any
 
-    triggers {
-        pollSCM('')
-    }
-
     environment {
         IMAGE_NAME = "securehub-frontend"
         KUBE_NAMESPACE = ""
@@ -13,34 +9,21 @@ pipeline {
     }
 
     stages {
-        stage('Validate Merge') {
+        stage('Validate Branch') {
             steps {
                 script {
                     def branch = env.BRANCH_NAME
                     def isPR = env.CHANGE_ID != null
 
                     if (isPR) {
-                        echo "Pull Request detectado - cancelando ejecucion"
-                        error "El pipeline solo se ejecuta en merges, no en Pull Requests"
+                        error "Los Pull Requests no ejecutan pipeline. Solo se ejecuta en merges."
                     }
 
                     if (!(branch == "develop" || branch == "master" || branch.startsWith("stage"))) {
                         error "Branch no permitida: ${branch}"
                     }
 
-                    def lastCommit = bat(
-                        script: "git log -1 --pretty=%%B",
-                        returnStdout: true
-                    ).trim()
-
-                    def isMergeCommit = lastCommit.startsWith("Merge")
-
-                    if (!isMergeCommit && branch != "master") {
-                        echo "Ultimo commit no es un merge: ${lastCommit}"
-                        error "El pipeline solo se ejecuta en commits de merge"
-                    }
-
-                    echo "Pipeline ejecutandose por merge a ${branch}"
+                    echo "Ejecutando pipeline para branch: ${branch}"
                 }
             }
         }
@@ -80,10 +63,6 @@ pipeline {
                     echo "ENV=${env.BUILD_ENV}"
                     echo "NAMESPACE=${env.KUBE_NAMESPACE}"
                     echo "TAG=${env.IMAGE_TAG}"
-
-                    if (!env.BUILD_ENV || !env.IMAGE_TAG) {
-                        error "No se pudieron establecer las variables de entorno"
-                    }
                 }
             }
         }
@@ -182,7 +161,7 @@ pipeline {
 
     post {
         success {
-            echo "Deploy exitoso por merge a ${env.BRANCH_NAME}"
+            echo "Deploy exitoso"
         }
         failure {
             echo "Pipeline fallo"
