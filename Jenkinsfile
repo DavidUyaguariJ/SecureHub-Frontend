@@ -149,9 +149,19 @@ pipeline {
                         def imageTag = env.IMAGE_TAG ?: "dev-${env.BUILD_NUMBER}"
                         def dockerUser = env.DOCKER_USER ?: "daviduyaguarij"
                         def imageName = env.IMAGE_NAME ?: "securehub-frontend"
+                        def nodePort = "30080"
+
+                        if (namespace == "dev") {
+                            nodePort = "30080"
+                        } else if (namespace == "stage") {
+                            nodePort = "30081"
+                        } else if (namespace == "prod") {
+                            nodePort = "30082"
+                        }
 
                         echo "Usando namespace: ${namespace}"
                         echo "Usando imageTag: ${imageTag}"
+                        echo "Usando nodePort: ${nodePort}"
 
                         def template = readFile('deployment-template.yaml')
                         def deployment = template
@@ -159,6 +169,7 @@ pipeline {
                             .replace('${IMAGE_TAG}', imageTag)
                             .replace('${DOCKERHUB_USER}', dockerUser)
                             .replace('${IMAGE_NAME}', imageName)
+                            .replace('${NODEPORT}', nodePort)
                         writeFile(file: 'deployment.yaml', text: deployment)
 
                         echo "deployment.yaml generado correctamente"
@@ -171,26 +182,8 @@ pipeline {
             steps {
                 script {
                     def namespace = env.KUBE_NAMESPACE ?: "dev"
-                    def nodePort = 30080
-
-                    if (namespace == "dev") {
-                        nodePort = 30080
-                    } else if (namespace == "stage") {
-                        nodePort = 30081
-                    } else if (namespace == "prod") {
-                        nodePort = 30082
-                    }
-
                     echo "Desplegando en namespace: ${namespace}"
                     bat "kubectl apply -f deployment.yaml"
-
-                    // Esperar 2 segundos en Windows sin timeout
-                    bat "ping 127.0.0.1 -n 3 > nul"
-
-                    // Parchear el NodePort
-                    bat """
-                        kubectl patch service frontend -n ${namespace} --type='json' -p='[{"op": "replace", "path": "/spec/ports/0/nodePort", "value": ${nodePort}}]'
-                    """
                 }
             }
         }
