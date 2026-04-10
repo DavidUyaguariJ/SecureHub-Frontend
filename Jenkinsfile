@@ -64,7 +64,6 @@ pipeline {
                 }
             }
         }
-
         stage('Build Docker Image') {
             steps {
                 withCredentials([usernamePassword(
@@ -90,7 +89,6 @@ pipeline {
                 }
             }
         }
-
         stage('Login DockerHub') {
             steps {
                 withCredentials([usernamePassword(
@@ -104,7 +102,6 @@ pipeline {
                 }
             }
         }
-
         stage('Push Image') {
             steps {
                 withCredentials([usernamePassword(
