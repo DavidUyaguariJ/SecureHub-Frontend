@@ -16,7 +16,7 @@ RUN ls -la /app/dist/
 # Etapa 2: Nginx
 FROM nginx:alpine
 
-COPY --from=build /app/dist/SecureHub-Frontend /usr/share/nginx/html
+COPY --from=build /app/dist/SecureHub-Frontend/browser /usr/share/nginx/html
 
 EXPOSE 80
 
