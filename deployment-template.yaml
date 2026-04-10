@@ -25,7 +25,7 @@ metadata:
   name: frontend
   namespace: ${NAMESPACE}
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: frontend
   ports:
