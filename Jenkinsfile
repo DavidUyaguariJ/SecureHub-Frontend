@@ -5,22 +5,20 @@ pipeline {
         IMAGE_NAME = "securehub-frontend"
         BUILD_ENV = ""
         IMAGE_TAG = ""
+        NAMESPACE = ""
+        FULL_IMAGE = ""
         K8S_REPO = "https://github.com/DavidUyaguariJ/SecureHub-Frontend.git"
         K8S_BRANCH = "main"
     }
-
     stages {
-
         stage('Validate Branch') {
             steps {
                 script {
                     def branch = env.BRANCH_NAME
                     def isPR = env.CHANGE_ID != null
-
                     if (isPR) {
                         error "PR no permitido"
                     }
-
                     if (!(branch == "develop" || branch == "master" || branch.startsWith("stage"))) {
                         error "Branch no permitida: ${branch}"
                     }
@@ -54,9 +52,16 @@ pipeline {
 
                         env.IMAGE_TAG = version
                     }
+                    if (!env.IMAGE_TAG || !env.NAMESPACE) {
+                        error "Variables no definidas correctamente"
+                    }
+                    echo "ENV: ${env.BUILD_ENV}"
+                    echo "TAG: ${env.IMAGE_TAG}"
+                    echo "NAMESPACE: ${env.NAMESPACE}"
                 }
             }
         }
+
         stage('Build & Push Docker Image') {
             steps {
                 withCredentials([usernamePassword(
@@ -65,20 +70,26 @@ pipeline {
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
                     script {
-                        env.FULL_IMAGE = "${DOCKER_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
+
+                        env.FULL_IMAGE = "${DOCKER_USER}/${env.IMAGE_NAME}:${env.IMAGE_TAG}"
+
+                        echo "Building image: ${env.FULL_IMAGE}"
+
                         sh """
                             docker build \
-                              --build-arg BUILD_ENV=${BUILD_ENV} \
-                              -t ${FULL_IMAGE} .
+                              --build-arg BUILD_ENV=${env.BUILD_ENV} \
+                              -t ${env.FULL_IMAGE} .
                         """
+
                         sh """
                             echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin
-                            docker push ${FULL_IMAGE}
+                            docker push ${env.FULL_IMAGE}
                         """
                     }
                 }
             }
         }
+
         stage('Generate & Update Kubernetes Manifests') {
             steps {
                 withCredentials([
@@ -105,16 +116,16 @@ pipeline {
                             sh """
                                 sed -e 's|\\\${NAMESPACE}|${env.NAMESPACE}|g' \
                                     -e 's|\\\${DOCKERHUB_USER}|${DOCKER_USER}|g' \
-                                    -e 's|\\\${IMAGE_NAME}|${IMAGE_NAME}|g' \
-                                    -e 's|\\\${IMAGE_TAG}|${IMAGE_TAG}|g' \
+                                    -e 's|\\\${IMAGE_NAME}|${env.IMAGE_NAME}|g' \
+                                    -e 's|\\\${IMAGE_TAG}|${env.IMAGE_TAG}|g' \
                                     deployment-template.yaml > ${path}/deployment.yaml
                             """
                             sh """
                                 git config user.name "jenkins"
                                 git config user.email "jenkins@local"
                                 git add .
-                                git diff --cached --quiet || git commit -m "Deploy ${env.NAMESPACE} → ${IMAGE_TAG}"
-                                git push origin ${K8S_BRANCH}
+                                git diff --cached --quiet || git commit -m "Deploy ${env.NAMESPACE} → ${env.IMAGE_TAG}"
+                                git push origin ${env.K8S_BRANCH}
                             """
                         }
                     }
@@ -122,10 +133,9 @@ pipeline {
             }
         }
     }
-
     post {
         success {
-            echo "Buid Success"
+            echo "Build Success, Argo CD desplegará automáticamente"
         }
         failure {
             echo "Pipeline falló"
