@@ -3,12 +3,14 @@ pipeline {
 
     environment {
         IMAGE_NAME = "securehub-frontend"
-        KUBE_NAMESPACE = ""
         BUILD_ENV = ""
         IMAGE_TAG = ""
+        K8S_REPO = "https://github.com/DavidUyaguariJ/SecureHub-Frontend.git"
+        K8S_BRANCH = "main"
     }
 
     stages {
+
         stage('Validate Branch') {
             steps {
                 script {
@@ -16,55 +18,46 @@ pipeline {
                     def isPR = env.CHANGE_ID != null
 
                     if (isPR) {
-                        error "Los Pull Requests no ejecutan pipeline. Solo se ejecuta en merges."
+                        error "PR no permitido"
                     }
 
                     if (!(branch == "develop" || branch == "master" || branch.startsWith("stage"))) {
                         error "Branch no permitida: ${branch}"
                     }
-
-                    echo "Ejecutando pipeline para branch: ${branch}"
                 }
             }
         }
-
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
-
         stage('Set Environment') {
             steps {
                 script {
                     def branch = env.BRANCH_NAME
-
                     if (branch == "develop") {
                         env.BUILD_ENV = "development"
-                        env.KUBE_NAMESPACE = "dev"
                         env.IMAGE_TAG = "dev-${env.BUILD_NUMBER}"
+                        env.NAMESPACE = "dev"
                     } else if (branch.startsWith("stage")) {
                         env.BUILD_ENV = "pre"
-                        env.KUBE_NAMESPACE = "stage"
                         env.IMAGE_TAG = "stage-${env.BUILD_NUMBER}"
+                        env.NAMESPACE = "stage"
                     } else if (branch == "master") {
                         env.BUILD_ENV = "production"
-                        env.KUBE_NAMESPACE = "prod"
-
-                        def version = bat(
+                        env.NAMESPACE = "prod"
+                        def version = sh(
                             script: "node -p \"require('./package.json').version\"",
                             returnStdout: true
                         ).trim()
+
                         env.IMAGE_TAG = version
                     }
-
-                    echo "BUILD_ENV: ${env.BUILD_ENV}"
-                    echo "KUBE_NAMESPACE: ${env.KUBE_NAMESPACE}"
-                    echo "IMAGE_TAG: ${env.IMAGE_TAG}"
                 }
             }
         }
-        stage('Build Docker Image') {
+        stage('Build & Push Docker Image') {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'dockerhub-creds',
@@ -72,112 +65,59 @@ pipeline {
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
                     script {
-                        def buildEnv = env.BUILD_ENV ?: "development"
-                        def imageTag = env.IMAGE_TAG ?: "dev-${env.BUILD_NUMBER}"
-
-                        echo "Construyendo con configuracion: ${buildEnv}"
-                        echo "Tag: ${env.DOCKER_USER}/${env.IMAGE_NAME}:${imageTag}"
-
-                        bat """
-                            docker build ^
-                              --build-arg BUILD_ENV=${buildEnv} ^
-                              -t ${env.DOCKER_USER}/${env.IMAGE_NAME}:${imageTag} .
+                        env.FULL_IMAGE = "${DOCKER_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
+                        sh """
+                            docker build \
+                              --build-arg BUILD_ENV=${BUILD_ENV} \
+                              -t ${FULL_IMAGE} .
                         """
-
-                        env.IMAGE_TAG = imageTag
-                    }
-                }
-            }
-        }
-        stage('Login DockerHub') {
-            steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-creds',
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
-                    bat """
-                        echo ${env.DOCKER_PASS} | docker login -u ${env.DOCKER_USER} --password-stdin
-                    """
-                }
-            }
-        }
-        stage('Push Image') {
-            steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-creds',
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
-                    script {
-                        def imageTag = env.IMAGE_TAG ?: "dev-${env.BUILD_NUMBER}"
-                        echo "Empujando imagen: ${env.DOCKER_USER}/${env.IMAGE_NAME}:${imageTag}"
-                        bat """
-                            docker push ${env.DOCKER_USER}/${env.IMAGE_NAME}:${imageTag}
+                        sh """
+                            echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin
+                            docker push ${FULL_IMAGE}
                         """
                     }
                 }
             }
         }
-
-        stage('Tag Git (solo master)') {
-            when {
-                branch 'master'
-            }
+        stage('Generate & Update Kubernetes Manifests') {
             steps {
-                bat """
-                    git config user.name "jenkins"
-                    git config user.email "jenkins@local"
-                    git tag v${env.IMAGE_TAG}
-                    git push origin v${env.IMAGE_TAG}
-                """
-            }
-        }
-
-        stage('Prepare Deployment YAML') {
-            steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-creds',
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'github-creds',
+                        usernameVariable: 'GIT_USER',
+                        passwordVariable: 'GIT_PASS'
+                    ),
+                    usernamePassword(
+                        credentialsId: 'dockerhub-creds',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )
+                ]) {
                     script {
-                        def namespace = env.KUBE_NAMESPACE ?: "dev"
-                        def imageTag = env.IMAGE_TAG ?: "dev-${env.BUILD_NUMBER}"
-                        def dockerUser = env.DOCKER_USER ?: "daviduyaguarij"
-                        def imageName = env.IMAGE_NAME ?: "securehub-frontend"
-                        echo "Usando namespace: ${namespace}"
-                        echo "Usando imageTag: ${imageTag}"
-                        def template = readFile('deployment-template.yaml')
-                        def deployment = template
-                            .replace('${NAMESPACE}', namespace)
-                            .replace('${IMAGE_TAG}', imageTag)
-                            .replace('${DOCKERHUB_USER}', dockerUser)
-                            .replace('${IMAGE_NAME}', imageName)
-                        writeFile(file: 'deployment.yaml', text: deployment)
-                        echo "deployment.yaml generado correctamente"
+                        sh """
+                            rm -rf k8s-repo
+                            git clone https://${GIT_USER}:${GIT_PASS}@github.com/DavidUyaguariJ/SecureHub-Frontend.git k8s-repo
+                        """
+                        dir("k8s-repo") {
+                            def path = "kubernetes/${env.NAMESPACE}"
+                            sh "mkdir -p ${path}"
+                            echo "Generando deployment en ${path}"
+                            sh """
+                                sed -e 's|\\\${NAMESPACE}|${env.NAMESPACE}|g' \
+                                    -e 's|\\\${DOCKERHUB_USER}|${DOCKER_USER}|g' \
+                                    -e 's|\\\${IMAGE_NAME}|${IMAGE_NAME}|g' \
+                                    -e 's|\\\${IMAGE_TAG}|${IMAGE_TAG}|g' \
+                                    deployment-template.yaml > ${path}/deployment.yaml
+                            """
+                            sh """
+                                git config user.name "jenkins"
+                                git config user.email "jenkins@local"
+                                git add .
+                                git diff --cached --quiet || git commit -m "Deploy ${env.NAMESPACE} → ${IMAGE_TAG}"
+                                git push origin ${K8S_BRANCH}
+                            """
+                        }
                     }
-                }
-            }
-        }
-
-        stage('Deploy') {
-            steps {
-                script {
-                    def namespace = env.KUBE_NAMESPACE ?: "dev"
-                    echo "Desplegando en namespace: ${namespace}"
-                    bat "kubectl apply -f deployment.yaml"
-                }
-            }
-        }
-
-        stage('Verify') {
-            steps {
-                script {
-                    def namespace = env.KUBE_NAMESPACE ?: "dev"
-                    bat "kubectl rollout status deployment/frontend -n ${namespace}"
-                    bat "kubectl get pods -n ${namespace}"
-                    bat "kubectl get svc -n ${namespace}"
                 }
             }
         }
@@ -185,10 +125,10 @@ pipeline {
 
     post {
         success {
-            echo "Deploy exitoso en ambiente ${env.BUILD_ENV}"
+            echo "Buid Success"
         }
         failure {
-            echo "Pipeline fallo"
+            echo "Pipeline falló"
         }
     }
 }
