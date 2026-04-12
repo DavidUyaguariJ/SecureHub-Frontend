@@ -6,45 +6,54 @@ pipeline {
         BUILD_ENV = ""
         IMAGE_TAG = ""
         NAMESPACE = ""
-        FULL_IMAGE = ""
         K8S_REPO = "https://github.com/DavidUyaguariJ/SecureHub-Frontend.git"
         K8S_BRANCH = "main"
     }
+
     stages {
+
         stage('Validate Branch') {
             steps {
                 script {
                     def branch = env.BRANCH_NAME
                     def isPR = env.CHANGE_ID != null
+
                     if (isPR) {
                         error "PR no permitido"
                     }
+
                     if (!(branch == "develop" || branch == "master" || branch.startsWith("stage"))) {
                         error "Branch no permitida: ${branch}"
                     }
                 }
             }
         }
+
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
+
         stage('Set Environment') {
             steps {
                 script {
                     def branch = env.BRANCH_NAME
+
                     if (branch == "develop") {
                         env.BUILD_ENV = "development"
                         env.IMAGE_TAG = "dev-${env.BUILD_NUMBER}"
                         env.NAMESPACE = "dev"
+
                     } else if (branch.startsWith("stage")) {
                         env.BUILD_ENV = "pre"
                         env.IMAGE_TAG = "stage-${env.BUILD_NUMBER}"
                         env.NAMESPACE = "stage"
+
                     } else if (branch == "master") {
                         env.BUILD_ENV = "production"
                         env.NAMESPACE = "prod"
+
                         def version = sh(
                             script: "node -p \"require('./package.json').version\"",
                             returnStdout: true
@@ -52,12 +61,6 @@ pipeline {
 
                         env.IMAGE_TAG = version
                     }
-                    if (!env.IMAGE_TAG || !env.NAMESPACE) {
-                        error "Variables no definidas correctamente"
-                    }
-                    echo "ENV: ${env.BUILD_ENV}"
-                    echo "TAG: ${env.IMAGE_TAG}"
-                    echo "NAMESPACE: ${env.NAMESPACE}"
                 }
             }
         }
@@ -70,27 +73,26 @@ pipeline {
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
                     script {
-
-                        env.FULL_IMAGE = "${DOCKER_USER}/${env.IMAGE_NAME}:${env.IMAGE_TAG}"
-
-                        echo "Building image: ${env.FULL_IMAGE}"
+                        def FULL_IMAGE = "${DOCKER_USER}/${env.IMAGE_NAME}:${env.IMAGE_TAG}"
 
                         sh """
                             docker build \
                               --build-arg BUILD_ENV=${env.BUILD_ENV} \
-                              -t ${env.FULL_IMAGE} .
+                              -t ${FULL_IMAGE} .
                         """
 
                         sh """
                             echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin
-                            docker push ${env.FULL_IMAGE}
+                            docker push ${FULL_IMAGE}
                         """
+
+                        env.FULL_IMAGE = FULL_IMAGE
                     }
                 }
             }
         }
 
-        stage('Generate & Update Kubernetes Manifests') {
+        stage('GitOps Update (Argo CD)') {
             steps {
                 withCredentials([
                     usernamePassword(
@@ -112,7 +114,6 @@ pipeline {
                         dir("k8s-repo") {
                             def path = "kubernetes/${env.NAMESPACE}"
                             sh "mkdir -p ${path}"
-                            echo "Generando deployment en ${path}"
                             sh """
                                 sed -e 's|\\\${NAMESPACE}|${env.NAMESPACE}|g' \
                                     -e 's|\\\${DOCKERHUB_USER}|${DOCKER_USER}|g' \
@@ -133,9 +134,10 @@ pipeline {
             }
         }
     }
+
     post {
         success {
-            echo "Build Success, Argo CD desplegará automáticamente"
+            echo "Ok: ArgoCD despliega automáticamente"
         }
         failure {
             echo "Pipeline falló"
