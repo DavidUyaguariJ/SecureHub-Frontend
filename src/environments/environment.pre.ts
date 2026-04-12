@@ -1,7 +1,7 @@
 export const environment = {
   production: false,
   keycloak: {
-    url: 'https://iam-securehub.com/',
+    url: 'https://157.137.208.39:8443/',
     realm: 'stage',
     clientId: 'SecureHub'
   }
