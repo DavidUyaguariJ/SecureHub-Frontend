@@ -21,7 +21,7 @@ pipeline {
                     if (isPR) {
                         error "Los Pull Requests no ejecutan pipeline."
                     }
-                    if (!(branch == "develop" || branch == "master" || branch.startsWith("stage"))) {
+                    if (!(branch == 'develop' || branch == 'master' || branch.startsWith('stage'))) {
                         error "Branch no permitida: '${branch}'"
                     }
                     echo "Ejecutando pipeline para branch: '${branch}'"
@@ -38,30 +38,28 @@ pipeline {
         stage('Set Environment') {
             steps {
                 script {
-                    echo "CHECKPOINT: entrando a Set Environment, branch='${env.BRANCH_NAME?.trim()}', buildNumber='${env.BUILD_NUMBER}'"
                     def branch = env.BRANCH_NAME?.trim()
-                    echo "Branch detectada: '${branch}'"
+                    echo "CHECKPOINT branch='${branch}' longitud=${branch?.length()} esDevelop=${branch == 'develop'}"
 
-                    // Variables locales primero
-                    def buildEnv  = ""
-                    def namespace = ""
-                    def imageTag  = ""
-                    def manifestP = ""
+                    def buildEnv  = ''
+                    def namespace = ''
+                    def imageTag  = ''
+                    def manifestP = ''
 
-                    if (branch == "develop") {
-                        buildEnv  = "development"
-                        namespace = "dev"
+                    if (branch == 'develop') {
+                        buildEnv  = 'development'
+                        namespace = 'dev'
                         imageTag  = "dev-${env.BUILD_NUMBER}"
-                        manifestP = "kubernetes/dev"
-                    } else if (branch?.startsWith("stage")) {
-                        buildEnv  = "pre"
-                        namespace = "stage"
+                        manifestP = 'kubernetes/dev'
+                    } else if (branch?.startsWith('stage')) {
+                        buildEnv  = 'pre'
+                        namespace = 'stage'
                         imageTag  = "stage-${env.BUILD_NUMBER}"
-                        manifestP = "kubernetes/stage"
-                    } else if (branch == "master") {
-                        buildEnv  = "production"
-                        namespace = "prod"
-                        manifestP = "kubernetes/prod"
+                        manifestP = 'kubernetes/stage'
+                    } else if (branch == 'master') {
+                        buildEnv  = 'production'
+                        namespace = 'prod'
+                        manifestP = 'kubernetes/prod'
                         imageTag  = powershell(
                             script: 'node -p "require(\'./package.json\').version"',
                             returnStdout: true
@@ -70,7 +68,6 @@ pipeline {
                         error "Branch no manejada: '${branch}'"
                     }
 
-                    // Asignar a env.* al final
                     env.BUILD_ENV      = buildEnv
                     env.KUBE_NAMESPACE = namespace
                     env.IMAGE_TAG      = imageTag
@@ -92,7 +89,7 @@ pipeline {
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
                     script {
-                        def buildEnv   = env.BUILD_ENV  ?: "development"
+                        def buildEnv   = env.BUILD_ENV  ?: 'development'
                         def imageTag   = env.IMAGE_TAG  ?: "dev-${env.BUILD_NUMBER}"
                         def dockerUser = env.DOCKER_USER
                         def imageName  = env.IMAGE_NAME
@@ -116,9 +113,8 @@ pipeline {
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    powershell '''
-                        Write-Output $env:DOCKER_PASS | docker login -u $env:DOCKER_USER --password-stdin
-                    '''
+                    // bat con sintaxis CMD — sin espacio antes del pipe
+                    bat 'echo %DOCKER_PASS%| docker login -u %DOCKER_USER% --password-stdin'
                 }
             }
         }
@@ -197,11 +193,11 @@ pipeline {
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
                     script {
-                        def namespace    = env.KUBE_NAMESPACE ?: "dev"
+                        def namespace    = env.KUBE_NAMESPACE ?: 'dev'
                         def imageTag     = env.IMAGE_TAG      ?: "dev-${env.BUILD_NUMBER}"
-                        def dockerUser   = env.DOCKER_USER    ?: "daviduyaguarij"
-                        def imageName    = env.IMAGE_NAME     ?: "securehub-frontend"
-                        def manifestPath = env.MANIFEST_PATH  ?: "kubernetes/dev"
+                        def dockerUser   = env.DOCKER_USER    ?: 'daviduyaguarij'
+                        def imageName    = env.IMAGE_NAME     ?: 'securehub-frontend'
+                        def manifestPath = env.MANIFEST_PATH  ?: 'kubernetes/dev'
 
                         def template   = readFile('deployment-template.yaml')
                         def deployment = template
@@ -231,10 +227,10 @@ pipeline {
                     passwordVariable: 'GIT_TOKEN'
                 )]) {
                     script {
-                        def namespace    = env.KUBE_NAMESPACE ?: "dev"
+                        def namespace    = env.KUBE_NAMESPACE ?: 'dev'
                         def imageTag     = env.IMAGE_TAG      ?: "dev-${env.BUILD_NUMBER}"
                         def imageName    = env.IMAGE_NAME
-                        def manifestPath = env.MANIFEST_PATH  ?: "kubernetes/dev"
+                        def manifestPath = env.MANIFEST_PATH  ?: 'kubernetes/dev'
                         def gitopsBranch = env.GITOPS_BRANCH
                         def gitUser      = env.GIT_USER
                         def gitToken     = env.GIT_TOKEN
