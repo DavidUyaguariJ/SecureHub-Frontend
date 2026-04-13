@@ -2,13 +2,10 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "securehub-frontend"
-        KUBE_NAMESPACE = ""
-        BUILD_ENV = ""
-        IMAGE_TAG = ""
-        GITOPS_REPO = "https://github.com/DavidUyaguariJ/SecureHub-GitOps.git"
+        IMAGE_NAME    = "securehub-frontend"
+        GITOPS_REPO   = "https://github.com/DavidUyaguariJ/SecureHub-GitOps.git"
         GITOPS_BRANCH = "main"
-        MANIFEST_PATH = ""
+        // ✅ NO declarar KUBE_NAMESPACE, BUILD_ENV, IMAGE_TAG, MANIFEST_PATH aquí
     }
 
     stages {
@@ -39,39 +36,29 @@ pipeline {
             steps {
                 script {
                     def branch = env.BRANCH_NAME?.trim()
-                    echo "CHECKPOINT branch='${branch}' longitud=${branch?.length()} esDevelop=${branch == 'develop'}"
-
-                    def buildEnv  = ''
-                    def namespace = ''
-                    def imageTag  = ''
-                    def manifestP = ''
+                    echo "Branch detectada: '${branch}'"
 
                     if (branch == 'develop') {
-                        buildEnv  = 'development'
-                        namespace = 'dev'
-                        imageTag  = "dev-${env.BUILD_NUMBER}"
-                        manifestP = 'kubernetes/dev'
+                        env.BUILD_ENV      = 'development'
+                        env.KUBE_NAMESPACE = 'dev'
+                        env.IMAGE_TAG      = "dev-${env.BUILD_NUMBER}"
+                        env.MANIFEST_PATH  = 'kubernetes/dev'
                     } else if (branch?.startsWith('stage')) {
-                        buildEnv  = 'pre'
-                        namespace = 'stage'
-                        imageTag  = "stage-${env.BUILD_NUMBER}"
-                        manifestP = 'kubernetes/stage'
+                        env.BUILD_ENV      = 'pre'
+                        env.KUBE_NAMESPACE = 'stage'
+                        env.IMAGE_TAG      = "stage-${env.BUILD_NUMBER}"
+                        env.MANIFEST_PATH  = 'kubernetes/stage'
                     } else if (branch == 'master') {
-                        buildEnv  = 'production'
-                        namespace = 'prod'
-                        manifestP = 'kubernetes/prod'
-                        imageTag  = powershell(
+                        env.BUILD_ENV      = 'production'
+                        env.KUBE_NAMESPACE = 'prod'
+                        env.MANIFEST_PATH  = 'kubernetes/prod'
+                        env.IMAGE_TAG      = powershell(
                             script: 'node -p "require(\'./package.json\').version"',
                             returnStdout: true
                         ).trim()
                     } else {
                         error "Branch no manejada: '${branch}'"
                     }
-
-                    env.BUILD_ENV      = buildEnv
-                    env.KUBE_NAMESPACE = namespace
-                    env.IMAGE_TAG      = imageTag
-                    env.MANIFEST_PATH  = manifestP
 
                     echo "BUILD_ENV:      ${env.BUILD_ENV}"
                     echo "KUBE_NAMESPACE: ${env.KUBE_NAMESPACE}"
@@ -113,7 +100,6 @@ pipeline {
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    // bat con sintaxis CMD — sin espacio antes del pipe
                     bat 'echo %DOCKER_PASS%| docker login -u %DOCKER_USER% --password-stdin'
                 }
             }
@@ -172,13 +158,11 @@ pipeline {
                         def gitopsBranch = env.GITOPS_BRANCH
                         def gitUser      = env.GIT_USER
                         def gitToken     = env.GIT_TOKEN
-                        powershell """
-                            if (Test-Path "gitops-repo") {
-                                Remove-Item -Recurse -Force "gitops-repo"
-                            }
-                            git clone https://${gitUser}:${gitToken}@github.com/DavidUyaguariJ/SecureHub-GitOps.git gitops-repo
-                            cd gitops-repo
-                            git checkout ${gitopsBranch}
+                        // ✅ bat para evitar problemas de interpolación con credenciales
+                        bat """
+                            if exist gitops-repo rmdir /s /q gitops-repo
+                            git clone https://%GIT_USER%:%GIT_TOKEN%@github.com/DavidUyaguariJ/SecureHub-GitOps.git gitops-repo
+                            cd gitops-repo && git checkout ${gitopsBranch}
                         """
                     }
                 }
@@ -232,24 +216,31 @@ pipeline {
                         def imageName    = env.IMAGE_NAME
                         def manifestPath = env.MANIFEST_PATH  ?: 'kubernetes/dev'
                         def gitopsBranch = env.GITOPS_BRANCH
-                        def gitUser      = env.GIT_USER
-                        def gitToken     = env.GIT_TOKEN
 
-                        powershell """
+                        bat """
                             cd gitops-repo
                             git config user.name "Jenkins CI"
                             git config user.email "jenkins@securehub.local"
+                            git status --porcelain > status.txt
+                            type status.txt
+                        """
 
-                            \$status = git status --porcelain
-                            if (\$status) {
+                        def status = bat(
+                            script: 'cd gitops-repo && git status --porcelain',
+                            returnStdout: true
+                        ).trim()
+
+                        if (status) {
+                            bat """
+                                cd gitops-repo
                                 git add ${manifestPath}/deployment.yaml
                                 git commit -m "Update image to ${imageName}:${imageTag} for ${namespace} [skip ci]"
-                                git push https://${gitUser}:${gitToken}@github.com/DavidUyaguariJ/SecureHub-GitOps.git ${gitopsBranch}
-                                Write-Host "Cambios pusheados al repositorio GitOps"
-                            } else {
-                                Write-Host "No hay cambios para commitear"
-                            }
-                        """
+                                git push https://%GIT_USER%:%GIT_TOKEN%@github.com/DavidUyaguariJ/SecureHub-GitOps.git ${gitopsBranch}
+                            """
+                            echo "Cambios pusheados al repositorio GitOps"
+                        } else {
+                            echo "No hay cambios para commitear"
+                        }
                         echo "ArgoCD detectará y sincronizará automáticamente los cambios"
                     }
                 }
