@@ -45,7 +45,7 @@ pipeline {
                         env.BUILD_ENV = "pre"
                         env.KUBE_NAMESPACE = "stage"
                         env.IMAGE_TAG = "stage-${env.BUILD_NUMBER}"
-                        env.MANIFEST_PATH = "kubernetes/pre"
+                        env.MANIFEST_PATH = "kubernetes/stage"
                     } else if (branch == "master") {
                         env.BUILD_ENV = "production"
                         env.KUBE_NAMESPACE = "prod"
