@@ -97,9 +97,9 @@ stage('Set Environment') {
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    powershell '''
-                        echo $env:DOCKER_PASS | docker login -u $env:DOCKER_USER --password-stdin
-                    '''
+                    bat """
+                        echo ${env.DOCKER_PASS} | docker login -u ${env.DOCKER_USER} --password-stdin
+                    """
                 }
             }
         }
