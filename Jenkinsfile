@@ -31,39 +31,44 @@ pipeline {
                 checkout scm
             }
         }
-        stage('Set Environment') {
-            steps {
-                script {
-                    def branch = env.BRANCH_NAME
+stage('Set Environment') {
+    steps {
+        script {
+            def branch = env.GIT_BRANCH?.replace("origin/", "") ?: "develop"
 
-                    if (branch == "develop") {
-                        env.BUILD_ENV = "development"
-                        env.KUBE_NAMESPACE = "dev"
-                        env.IMAGE_TAG = "dev-${env.BUILD_NUMBER}"
-                        env.MANIFEST_PATH = "kubernetes/dev"
-                    } else if (branch.startsWith("stage")) {
-                        env.BUILD_ENV = "pre"
-                        env.KUBE_NAMESPACE = "stage"
-                        env.IMAGE_TAG = "stage-${env.BUILD_NUMBER}"
-                        env.MANIFEST_PATH = "kubernetes/stage"
-                    } else if (branch == "master") {
-                        env.BUILD_ENV = "production"
-                        env.KUBE_NAMESPACE = "prod"
-                        env.MANIFEST_PATH = "kubernetes/prod"
+            echo "Branch detectada: ${branch}"
 
-                        def version = powershell(
-                            script: "node -p \"require('./package.json').version\"",
-                            returnStdout: true
-                        ).trim()
-                        env.IMAGE_TAG = version
-                    }
-                    echo "BUILD_ENV: ${env.BUILD_ENV}"
-                    echo "KUBE_NAMESPACE: ${env.KUBE_NAMESPACE}"
-                    echo "IMAGE_TAG: ${env.IMAGE_TAG}"
-                    echo "MANIFEST_PATH: ${env.MANIFEST_PATH}"
-                }
+            if (branch == "develop") {
+                env.BUILD_ENV = "development"
+                env.KUBE_NAMESPACE = "dev"
+                env.IMAGE_TAG = "dev-${env.BUILD_NUMBER}"
+                env.MANIFEST_PATH = "kubernetes/dev"
+
+            } else if (branch.startsWith("stage")) {
+                env.BUILD_ENV = "pre"
+                env.KUBE_NAMESPACE = "stage"
+                env.IMAGE_TAG = "stage-${env.BUILD_NUMBER}"
+                env.MANIFEST_PATH = "kubernetes/stage"
+
+            } else if (branch == "master") {
+                env.BUILD_ENV = "production"
+                env.KUBE_NAMESPACE = "prod"
+                env.MANIFEST_PATH = "kubernetes/prod"
+
+                def version = powershell(
+                    script: "node -p \"require('./package.json').version\"",
+                    returnStdout: true
+                ).trim()
+                env.IMAGE_TAG = version
             }
+
+            echo "BUILD_ENV: ${env.BUILD_ENV}"
+            echo "KUBE_NAMESPACE: ${env.KUBE_NAMESPACE}"
+            echo "IMAGE_TAG: ${env.IMAGE_TAG}"
+            echo "MANIFEST_PATH: ${env.MANIFEST_PATH}"
         }
+    }
+}
         stage('Build Docker Image') {
             steps {
                 withCredentials([usernamePassword(
