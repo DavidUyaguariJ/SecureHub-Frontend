@@ -34,7 +34,7 @@ pipeline {
 stage('Set Environment') {
     steps {
         script {
-            def branch = env.GIT_BRANCH?.replace("origin/", "") ?: "develop"
+            def branch = env.BRANCH_NAME
 
             echo "Branch detectada: ${branch}"
 
