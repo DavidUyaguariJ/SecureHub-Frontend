@@ -41,32 +41,39 @@ pipeline {
                     def branch = env.BRANCH_NAME?.trim()
                     echo "Branch detectada: '${branch}'"
 
-                    switch(true) {
-                        case (branch == "develop"):
-                            env.BUILD_ENV      = "development"
-                            env.KUBE_NAMESPACE = "dev"
-                            env.IMAGE_TAG      = "dev-${env.BUILD_NUMBER}"
-                            env.MANIFEST_PATH  = "kubernetes/dev"
-                            break
-                        case (branch?.startsWith("stage")):
-                            env.BUILD_ENV      = "pre"
-                            env.KUBE_NAMESPACE = "stage"
-                            env.IMAGE_TAG      = "stage-${env.BUILD_NUMBER}"
-                            env.MANIFEST_PATH  = "kubernetes/stage"
-                            break
-                        case (branch == "master"):
-                            env.BUILD_ENV      = "production"
-                            env.KUBE_NAMESPACE = "prod"
-                            env.MANIFEST_PATH  = "kubernetes/prod"
-                            def version = powershell(
-                                script: 'node -p "require(\'./package.json\').version"',
-                                returnStdout: true
-                            ).trim()
-                            env.IMAGE_TAG = version
-                            break
-                        default:
-                            error "Branch no manejada: '${branch}'"
+                    // Variables locales primero
+                    def buildEnv  = ""
+                    def namespace = ""
+                    def imageTag  = ""
+                    def manifestP = ""
+
+                    if (branch == "develop") {
+                        buildEnv  = "development"
+                        namespace = "dev"
+                        imageTag  = "dev-${env.BUILD_NUMBER}"
+                        manifestP = "kubernetes/dev"
+                    } else if (branch?.startsWith("stage")) {
+                        buildEnv  = "pre"
+                        namespace = "stage"
+                        imageTag  = "stage-${env.BUILD_NUMBER}"
+                        manifestP = "kubernetes/stage"
+                    } else if (branch == "master") {
+                        buildEnv  = "production"
+                        namespace = "prod"
+                        manifestP = "kubernetes/prod"
+                        imageTag  = powershell(
+                            script: 'node -p "require(\'./package.json\').version"',
+                            returnStdout: true
+                        ).trim()
+                    } else {
+                        error "Branch no manejada: '${branch}'"
                     }
+
+                    // Asignar a env.* al final
+                    env.BUILD_ENV      = buildEnv
+                    env.KUBE_NAMESPACE = namespace
+                    env.IMAGE_TAG      = imageTag
+                    env.MANIFEST_PATH  = manifestP
 
                     echo "BUILD_ENV:      ${env.BUILD_ENV}"
                     echo "KUBE_NAMESPACE: ${env.KUBE_NAMESPACE}"
@@ -84,13 +91,16 @@ pipeline {
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
                     script {
-                        def buildEnv  = env.BUILD_ENV ?: "development"
-                        def imageTag  = env.IMAGE_TAG ?: "dev-${env.BUILD_NUMBER}"
-                        env.IMAGE_TAG = imageTag
+                        def buildEnv   = env.BUILD_ENV  ?: "development"
+                        def imageTag   = env.IMAGE_TAG  ?: "dev-${env.BUILD_NUMBER}"
+                        def dockerUser = env.DOCKER_USER
+                        def imageName  = env.IMAGE_NAME
+                        env.IMAGE_TAG  = imageTag
+
                         powershell """
                             docker build `
                                 --build-arg BUILD_ENV=${buildEnv} `
-                                -t $env:DOCKER_USER/${env.IMAGE_NAME}:${imageTag} `
+                                -t ${dockerUser}/${imageName}:${imageTag} `
                                 -f Dockerfile .
                         """
                     }
@@ -105,7 +115,6 @@ pipeline {
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    // ✅ comillas simples: Groovy no interpola, evita romper passwords con caracteres especiales
                     powershell '''
                         Write-Output $env:DOCKER_PASS | docker login -u $env:DOCKER_USER --password-stdin
                     '''
@@ -121,9 +130,11 @@ pipeline {
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
                     script {
-                        def imageTag = env.IMAGE_TAG ?: "dev-${env.BUILD_NUMBER}"
+                        def imageTag   = env.IMAGE_TAG ?: "dev-${env.BUILD_NUMBER}"
+                        def dockerUser = env.DOCKER_USER
+                        def imageName  = env.IMAGE_NAME
                         powershell """
-                            docker push $env:DOCKER_USER/${env.IMAGE_NAME}:${imageTag}
+                            docker push ${dockerUser}/${imageName}:${imageTag}
                         """
                     }
                 }
@@ -139,12 +150,14 @@ pipeline {
                     passwordVariable: 'GIT_TOKEN'
                 )]) {
                     script {
-                        def tag = env.IMAGE_TAG
+                        def tag      = env.IMAGE_TAG
+                        def gitUser  = env.GIT_USER
+                        def gitToken = env.GIT_TOKEN
                         powershell """
                             git config user.name "jenkins"
                             git config user.email "jenkins@local"
                             git tag "v${tag}"
-                            git push https://$env:GIT_USER:$env:GIT_TOKEN@github.com/DavidUyaguariJ/SecureHub-Frontend.git "v${tag}"
+                            git push https://${gitUser}:${gitToken}@github.com/DavidUyaguariJ/SecureHub-Frontend.git "v${tag}"
                         """
                     }
                 }
@@ -159,14 +172,16 @@ pipeline {
                     passwordVariable: 'GIT_TOKEN'
                 )]) {
                     script {
-                        def branch = env.GITOPS_BRANCH
+                        def gitopsBranch = env.GITOPS_BRANCH
+                        def gitUser      = env.GIT_USER
+                        def gitToken     = env.GIT_TOKEN
                         powershell """
                             if (Test-Path "gitops-repo") {
                                 Remove-Item -Recurse -Force "gitops-repo"
                             }
-                            git clone https://$env:GIT_USER:$env:GIT_TOKEN@github.com/DavidUyaguariJ/SecureHub-GitOps.git gitops-repo
+                            git clone https://${gitUser}:${gitToken}@github.com/DavidUyaguariJ/SecureHub-GitOps.git gitops-repo
                             cd gitops-repo
-                            git checkout ${branch}
+                            git checkout ${gitopsBranch}
                         """
                     }
                 }
@@ -220,6 +235,8 @@ pipeline {
                         def imageName    = env.IMAGE_NAME
                         def manifestPath = env.MANIFEST_PATH  ?: "kubernetes/dev"
                         def gitopsBranch = env.GITOPS_BRANCH
+                        def gitUser      = env.GIT_USER
+                        def gitToken     = env.GIT_TOKEN
 
                         powershell """
                             cd gitops-repo
@@ -230,7 +247,7 @@ pipeline {
                             if (\$status) {
                                 git add ${manifestPath}/deployment.yaml
                                 git commit -m "Update image to ${imageName}:${imageTag} for ${namespace} [skip ci]"
-                                git push https://$env:GIT_USER:$env:GIT_TOKEN@github.com/DavidUyaguariJ/SecureHub-GitOps.git ${gitopsBranch}
+                                git push https://${gitUser}:${gitToken}@github.com/DavidUyaguariJ/SecureHub-GitOps.git ${gitopsBranch}
                                 Write-Host "Cambios pusheados al repositorio GitOps"
                             } else {
                                 Write-Host "No hay cambios para commitear"
