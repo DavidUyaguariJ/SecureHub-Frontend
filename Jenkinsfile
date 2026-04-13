@@ -3,15 +3,15 @@ pipeline {
 
     environment {
         IMAGE_NAME = "securehub-frontend"
+        KUBE_NAMESPACE = ""
         BUILD_ENV = ""
         IMAGE_TAG = ""
-        NAMESPACE = ""
-        K8S_REPO = "https://github.com/DavidUyaguariJ/SecureHub-Frontend.git"
-        K8S_BRANCH = "main"
+        GITOPS_REPO = "https://github.com/DavidUyaguariJ/SecureHub-Frontend.git"
+        GITOPS_BRANCH = "master"
+        MANIFEST_PATH = ""
     }
 
     stages {
-
         stage('Validate Branch') {
             steps {
                 script {
@@ -19,7 +19,7 @@ pipeline {
                     def isPR = env.CHANGE_ID != null
 
                     if (isPR) {
-                        error "PR no permitido"
+                        error "Los Pull Requests no ejecutan pipeline."
                     }
 
                     if (!(branch == "develop" || branch == "master" || branch.startsWith("stage"))) {
@@ -34,7 +34,6 @@ pipeline {
                 checkout scm
             }
         }
-
         stage('Set Environment') {
             steps {
                 script {
@@ -42,18 +41,18 @@ pipeline {
 
                     if (branch == "develop") {
                         env.BUILD_ENV = "development"
+                        env.KUBE_NAMESPACE = "dev"
                         env.IMAGE_TAG = "dev-${env.BUILD_NUMBER}"
-                        env.NAMESPACE = "dev"
-
+                        env.MANIFEST_PATH = "kubernetes/dev"
                     } else if (branch.startsWith("stage")) {
                         env.BUILD_ENV = "pre"
+                        env.KUBE_NAMESPACE = "stage"
                         env.IMAGE_TAG = "stage-${env.BUILD_NUMBER}"
-                        env.NAMESPACE = "stage"
-
+                        env.MANIFEST_PATH = "kubernetes/stage"
                     } else if (branch == "master") {
                         env.BUILD_ENV = "production"
-                        env.NAMESPACE = "prod"
-
+                        env.KUBE_NAMESPACE = "prod"
+                        env.MANIFEST_PATH = "kubernetes/prod"
                         def version = sh(
                             script: "node -p \"require('./package.json').version\"",
                             returnStdout: true
@@ -64,8 +63,7 @@ pipeline {
                 }
             }
         }
-
-        stage('Build & Push Docker Image') {
+        stage('Build Docker Image') {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'dockerhub-creds',
@@ -73,60 +71,87 @@ pipeline {
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
                     script {
-                        def FULL_IMAGE = "${DOCKER_USER}/${env.IMAGE_NAME}:${env.IMAGE_TAG}"
+                        def buildEnv = env.BUILD_ENV ?: "development"
+                        def imageTag = env.IMAGE_TAG ?: "dev-${env.BUILD_NUMBER}"
 
                         sh """
                             docker build \
-                              --build-arg BUILD_ENV=${env.BUILD_ENV} \
-                              -t ${FULL_IMAGE} .
+                                --build-arg BUILD_ENV=${buildEnv} \
+                                -t ${DOCKER_USER}/${env.IMAGE_NAME}:${imageTag} .
                         """
 
-                        sh """
-                            echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin
-                            docker push ${FULL_IMAGE}
-                        """
-
-                        env.FULL_IMAGE = FULL_IMAGE
+                        env.IMAGE_TAG = imageTag
                     }
                 }
             }
         }
 
-        stage('GitOps Update (Argo CD)') {
+        stage('Login DockerHub') {
             steps {
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'github-creds',
-                        usernameVariable: 'GIT_USER',
-                        passwordVariable: 'GIT_PASS'
-                    ),
-                    usernamePassword(
-                        credentialsId: 'dockerhub-creds',
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_PASS'
-                    )
-                ]) {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh """
+                        echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin
+                    """
+                }
+            }
+        }
+
+        stage('Push Image') {
+            steps {
+                script {
+                    def imageTag = env.IMAGE_TAG ?: "dev-${env.BUILD_NUMBER}"
+
+                    sh """
+                        docker push ${DOCKER_USER}/${env.IMAGE_NAME}:${imageTag}
+                    """
+                }
+            }
+        }
+
+        stage('GitOps Update') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'github-creds',
+                    usernameVariable: 'GIT_USER',
+                    passwordVariable: 'GIT_PASS'
+                )]) {
                     script {
+
                         sh """
-                            rm -rf k8s-repo
-                            git clone https://${GIT_USER}:${GIT_PASS}@github.com/DavidUyaguariJ/SecureHub-Frontend.git k8s-repo
+                            rm -rf gitops-repo
+                            git clone https://${GIT_USER}:${GIT_PASS}@github.com/DavidUyaguariJ/SecureHub-Frontend.git gitops-repo
                         """
-                        dir("k8s-repo") {
-                            def path = "kubernetes/${env.NAMESPACE}"
-                            sh "mkdir -p ${path}"
+
+                        dir("gitops-repo") {
+
+                            sh "mkdir -p ${env.MANIFEST_PATH}"
+
+                            def template = readFile('../deployment-template.yaml')
+
+                            def deployment = template
+                                .replace('${NAMESPACE}', env.KUBE_NAMESPACE)
+                                .replace('${IMAGE_TAG}', env.IMAGE_TAG)
+                                .replace('${DOCKERHUB_USER}', env.DOCKER_USER)
+                                .replace('${IMAGE_NAME}', env.IMAGE_NAME)
+
+                            writeFile(
+                                file: "${env.MANIFEST_PATH}/deployment.yaml",
+                                text: deployment
+                            )
+
                             sh """
-                                sed -e 's|\\\${NAMESPACE}|${env.NAMESPACE}|g' \
-                                    -e 's|\\\${DOCKERHUB_USER}|${DOCKER_USER}|g' \
-                                    -e 's|\\\${IMAGE_NAME}|${env.IMAGE_NAME}|g' \
-                                    -e 's|\\\${IMAGE_TAG}|${env.IMAGE_TAG}|g' \
-                                    deployment-template.yaml > ${path}/deployment.yaml
-                            """
-                            sh """
-                                git config user.name "jenkins"
+                                git config user.name "Jenkins CI"
                                 git config user.email "jenkins@local"
+
                                 git add .
-                                git diff --cached --quiet || git commit -m "Deploy ${env.NAMESPACE} → ${env.IMAGE_TAG}"
-                                git push origin ${env.K8S_BRANCH}
+
+                                git diff --cached --quiet || git commit -m "Deploy ${env.KUBE_NAMESPACE} → ${env.IMAGE_TAG}"
+
+                                git push origin ${GITOPS_BRANCH}
                             """
                         }
                     }
@@ -134,10 +159,9 @@ pipeline {
             }
         }
     }
-
     post {
         success {
-            echo "Ok: ArgoCD despliega automáticamente"
+            echo "OK: ArgoCD hará deploy automático"
         }
         failure {
             echo "Pipeline falló"
