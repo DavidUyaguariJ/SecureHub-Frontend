@@ -36,9 +36,9 @@ pipeline {
         }
 
         stage('Set Environment') {
-        echo "CHECKPOINT: entrando a Set Environment, branch='${env.BRANCH_NAME?.trim()}', buildNumber='${env.BUILD_NUMBER}'"
             steps {
                 script {
+                    echo "CHECKPOINT: entrando a Set Environment, branch='${env.BRANCH_NAME?.trim()}', buildNumber='${env.BUILD_NUMBER}'"
                     def branch = env.BRANCH_NAME?.trim()
                     echo "Branch detectada: '${branch}'"
 
