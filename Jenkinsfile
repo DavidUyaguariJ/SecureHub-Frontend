@@ -5,9 +5,7 @@ pipeline {
         IMAGE_NAME    = "securehub-frontend"
         GITOPS_REPO   = "https://github.com/DavidUyaguariJ/SecureHub-GitOps.git"
         GITOPS_BRANCH = "main"
-        // ✅ NO declarar KUBE_NAMESPACE, BUILD_ENV, IMAGE_TAG, MANIFEST_PATH aquí
     }
-
     stages {
 
         stage('Validate Branch') {
@@ -25,19 +23,16 @@ pipeline {
                 }
             }
         }
-
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
-
         stage('Set Environment') {
             steps {
                 script {
                     def branch = env.BRANCH_NAME?.trim()
                     echo "Branch detectada: '${branch}'"
-
                     if (branch == 'develop') {
                         env.BUILD_ENV      = 'development'
                         env.KUBE_NAMESPACE = 'dev'
@@ -59,7 +54,6 @@ pipeline {
                     } else {
                         error "Branch no manejada: '${branch}'"
                     }
-
                     echo "BUILD_ENV:      ${env.BUILD_ENV}"
                     echo "KUBE_NAMESPACE: ${env.KUBE_NAMESPACE}"
                     echo "IMAGE_TAG:      ${env.IMAGE_TAG}"
@@ -92,7 +86,6 @@ pipeline {
                 }
             }
         }
-
         stage('Login DockerHub') {
             steps {
                 withCredentials([usernamePassword(
@@ -104,7 +97,6 @@ pipeline {
                 }
             }
         }
-
         stage('Push Image') {
             steps {
                 withCredentials([usernamePassword(
@@ -123,7 +115,6 @@ pipeline {
                 }
             }
         }
-
         stage('Tag Git (solo master)') {
             when { branch 'master' }
             steps {
@@ -146,7 +137,6 @@ pipeline {
                 }
             }
         }
-
         stage('Checkout GitOps Repo') {
             steps {
                 withCredentials([usernamePassword(
@@ -158,7 +148,6 @@ pipeline {
                         def gitopsBranch = env.GITOPS_BRANCH
                         def gitUser      = env.GIT_USER
                         def gitToken     = env.GIT_TOKEN
-                        // ✅ bat para evitar problemas de interpolación con credenciales
                         bat """
                             if exist gitops-repo rmdir /s /q gitops-repo
                             git clone https://%GIT_USER%:%GIT_TOKEN%@github.com/DavidUyaguariJ/SecureHub-GitOps.git gitops-repo
@@ -182,14 +171,12 @@ pipeline {
                         def dockerUser   = env.DOCKER_USER    ?: 'daviduyaguarij'
                         def imageName    = env.IMAGE_NAME     ?: 'securehub-frontend'
                         def manifestPath = env.MANIFEST_PATH  ?: 'kubernetes/dev'
-
                         def template   = readFile('deployment-template.yaml')
                         def deployment = template
                             .replace('${NAMESPACE}',      namespace)
                             .replace('${IMAGE_TAG}',      imageTag)
                             .replace('${DOCKERHUB_USER}', dockerUser)
                             .replace('${IMAGE_NAME}',     imageName)
-
                         powershell """
                             New-Item -ItemType Directory -Force -Path "gitops-repo/${manifestPath}"
                         """
@@ -202,7 +189,6 @@ pipeline {
                 }
             }
         }
-
         stage('Commit and Push to GitOps Repo') {
             steps {
                 withCredentials([usernamePassword(
@@ -211,12 +197,11 @@ pipeline {
                     passwordVariable: 'GIT_TOKEN'
                 )]) {
                     script {
-                        def namespace    = env.KUBE_NAMESPACE ?: 'dev'
-                        def imageTag     = env.IMAGE_TAG      ?: "dev-${env.BUILD_NUMBER}"
+                        def namespace    = env.KUBE_NAMESPACE
+                        def imageTag     = env.IMAGE_TAG
                         def imageName    = env.IMAGE_NAME
-                        def manifestPath = env.MANIFEST_PATH  ?: 'kubernetes/dev'
+                        def manifestPath = env.MANIFEST_PATH
                         def gitopsBranch = env.GITOPS_BRANCH
-
                         bat """
                             cd gitops-repo
                             git config user.name "Jenkins CI"
@@ -224,12 +209,10 @@ pipeline {
                             git status --porcelain > status.txt
                             type status.txt
                         """
-
                         def status = bat(
                             script: 'cd gitops-repo && git status --porcelain',
                             returnStdout: true
                         ).trim()
-
                         if (status) {
                             bat """
                                 cd gitops-repo
@@ -247,7 +230,6 @@ pipeline {
             }
         }
     }
-
     post {
         success {
             script {
