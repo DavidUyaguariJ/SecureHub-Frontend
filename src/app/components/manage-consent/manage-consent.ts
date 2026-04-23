@@ -188,8 +188,8 @@ export class ManageConsent {
       contactPerson: this.isEmpresa() ? this.subjectModel().contactPerson : '',
       devices: this.devices(),
       biometricImageBase64: this.biometricBase64(),
-      consentText: 'Autorizo el tratamiento de mis datos personales según la LOPDP.',
-      templateType: 'FACE_PCA',
+      consentText: 'Autorización por registro facial',
+      templateType: 'ARCFACE_512',
       digitalSignature: '',
     };
   }
@@ -197,8 +197,9 @@ export class ManageConsent {
   async onSubmit(event: Event): Promise<void> {
     event.preventDefault();
     if (!this.validateForm()) {
-      return;
+      return
     }
+    ;
     const payload = this.buildPayload();
     try {
       this.loading.set(true);
@@ -211,7 +212,6 @@ export class ManageConsent {
         rejectVisible: false,
         accept: () => this.resetForm(),
       });
-
     } catch (err: unknown) {
       console.error(err);
     } finally {
