@@ -1,11 +1,11 @@
-import { Component, type OnInit } from '@angular/core';
+import {Component, type OnInit} from '@angular/core';
 
-import { Menubar } from 'primeng/menubar';
-import { RouterOutlet } from '@angular/router';
+import {Menubar} from 'primeng/menubar';
+import {RouterOutlet} from '@angular/router';
 
-import { PrimeTemplate, type MenuItem } from 'primeng/api';
+import {PrimeTemplate, type MenuItem} from 'primeng/api';
 
-import { AuthService } from './security/auth.service';
+import {AuthService} from './security/auth.service';
 import {ButtonModule} from 'primeng/button';
 
 @Component({
@@ -31,11 +31,25 @@ export class App implements OnInit {
 
   items: MenuItem[] = [];
 
-  constructor(private auth: AuthService) {}
+  constructor(private auth: AuthService) {
+  }
 
   ngOnInit(): void {
     this.items = [
-      { label: 'Home', icon: 'pi pi-home', routerLink: '/' },
+      {label: 'Home', icon: 'pi pi-home', routerLink: '/'},
+      {
+        label: 'Datos personales',
+        icon: 'pi pi-list-check',
+        items: [
+          ...(this.auth.hasRole('admin_role') ? [
+            {
+              label: 'Gestión de consentimientos',
+              icon: 'pi pi-book',
+              routerLink: '/manage-consent'
+            }
+          ] : [])
+        ]
+      },
     ];
   }
 
