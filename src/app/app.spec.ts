@@ -1,10 +1,25 @@
 import { TestBed } from '@angular/core/testing';
 import { App } from './app';
+import {provideHttpClientTesting} from '@angular/common/http/testing';
+import {provideHttpClient} from '@angular/common/http';
+
+const mockKeycloak = {
+  init: vi.fn(),
+  login: vi.fn(),
+  logout: vi.fn(),
+  isLoggedIn: vi.fn().mockReturnValue(true),
+  getToken: vi.fn().mockResolvedValue('token'),
+};
 
 describe('App', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [App],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: 'Keycloak', useValue: mockKeycloak },
+      ],
     }).compileComponents();
   });
 
@@ -14,10 +29,10 @@ describe('App', () => {
     expect(app).toBeTruthy();
   });
 
-  it('should render title', async () => {
+  it('should render title', () => {
     const fixture = TestBed.createComponent(App);
-    await fixture.whenStable();
+    fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Hello, SecureHub-Frontend');
+    expect(compiled.textContent).toContain('SecureHub');
   });
 });

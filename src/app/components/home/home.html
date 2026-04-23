@@ -1,0 +1,27 @@
+<div class="grid p-4 gap-4">
+
+  <p-card header="Bienvenido">
+    <div class="flex align-items-center gap-3">
+      <p-avatar icon="pi pi-user" shape="circle"></p-avatar>
+      <div>
+        <h2 class="m-0">Hola, {{ username() }}</h2>
+        <small>Sesión activa</small>
+      </div>
+    </div>
+  </p-card>
+
+  <p-card header="Resumen">
+    <div class="grid">
+      <div class="col-12 md:col-4">
+        <p-tag value="Usuarios: 120"></p-tag>
+      </div>
+      <div class="col-12 md:col-4">
+        <p-tag severity="success" value="Activos: 80"></p-tag>
+      </div>
+      <div class="col-12 md:col-4">
+        <p-tag severity="warn" value="Pendientes: 10"></p-tag>
+      </div>
+    </div>
+  </p-card>
+
+</div>
