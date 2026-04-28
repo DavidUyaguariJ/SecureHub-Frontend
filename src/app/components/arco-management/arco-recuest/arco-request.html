@@ -1,0 +1,293 @@
+<p-toast />
+
+@if (submitLoading()) {
+  <div class="fixed top-0 left-0 w-full h-full flex align-items-center
+              justify-content-center z-5"
+       style="background: rgba(0,0,0,0.4)">
+    <div class="surface-card border-round-xl p-5 flex flex-column
+                align-items-center gap-3 shadow-5">
+      <p-progressSpinner strokeWidth="4" style="width:60px;height:60px" />
+      <span class="font-semibold text-lg">Enviando solicitud...</span>
+    </div>
+  </div>
+}
+
+<div class="flex justify-content-center p-4">
+  <p-card class="w-full md:w-10 lg:w-8 xl:w-7 shadow-3 border-round-2xl">
+    <ng-template pTemplate="header">
+      <div class="p-4 pb-0">
+        <div class="flex align-items-center gap-3 mb-3">
+          <i class="pi pi-shield text-primary" style="font-size:2rem"></i>
+          <div>
+            <h2 class="text-900 font-bold m-0">Solicitud de Derechos ARCO</h2>
+            <small class="text-color-secondary">Acceso · Rectificación · Cancelación · Oposición · Portabilidad</small>
+          </div>
+        </div>
+        <div class="flex align-items-center gap-2 mb-1">
+          @for (s of [
+            {label:'Identificación', icon:'pi-search', idx: 0},
+            {label:'Verificación',   icon:'pi-camera', idx: 1},
+            {label:'Solicitud',      icon:'pi-file-edit', idx: 2},
+            {label:'Confirmación',   icon:'pi-check', idx: 3}
+          ]; track s.idx) {
+            <div class="flex align-items-center gap-2"
+                 [class.opacity-40]="stepIndex() < s.idx">
+              <div class="flex align-items-center justify-content-center border-circle"
+                   style="width:32px;height:32px;min-width:32px"
+                   [ngClass]="stepIndex() >= s.idx
+                     ? 'bg-primary text-white'
+                     : 'surface-200 text-color-secondary'">
+                <i class="pi {{s.icon}}" style="font-size:.85rem"></i>
+              </div>
+              <span class="text-sm font-medium hidden md:inline">{{s.label}}</span>
+            </div>
+            @if (s.idx < 3) {
+              <div class="flex-1 border-top-1"
+                   [style.borderColor]="stepIndex() > s.idx
+                     ? 'var(--primary-color)'
+                     : 'var(--surface-300)'">
+              </div>
+            }
+          }
+        </div>
+        <p-divider />
+      </div>
+    </ng-template>
+    <div class="p-fluid">
+      @if (step() === 'lookup') {
+        <div class="mb-3">
+          <h3 class="text-900 font-semibold m-0">
+            <i class="pi pi-search mr-2 text-primary"></i>¿Quién realiza la solicitud?
+          </h3>
+          <p-divider />
+        </div>
+
+        <div class="surface-100 border-round p-3 mb-4 text-sm line-height-3">
+          <p class="m-0 text-700">
+            De conformidad con la <strong>Ley Orgánica de Protección de Datos Personales (LOPDP)</strong>
+            del Ecuador, puede ejercer sus derechos ARCO ingresando su número de cédula o RUC.
+            Se verificará su identidad mediante reconocimiento facial antes de proceder.
+          </p>
+        </div>
+
+        <div class="field">
+          <label class="font-medium">Cédula o RUC <span class="text-red-500">*</span></label>
+          <div class="flex gap-2">
+            <input pInputText
+                   class="w-full"
+                   placeholder="Ingrese su identificación"
+                   inputmode="numeric"
+                   [value]="identification()"
+                   (input)="identification.set($any($event.target).value)"
+                   (keyup.enter)="onLookup()" />
+            <p-button label="Buscar"
+                      icon="pi pi-search"
+                      severity="contrast"
+                      [loading]="lookupLoading()"
+                      [disabled]="!identification().trim()"
+                      (onClick)="onLookup()" />
+          </div>
+          @if (lookupError()) {
+            <small class="text-red-500 block mt-2">
+              <i class="pi pi-exclamation-triangle mr-1"></i>{{ lookupError() }}
+            </small>
+          }
+        </div>
+      }
+      @if (step() === 'verify') {
+        <div class="mb-3">
+          <h3 class="text-900 font-semibold m-0">
+            <i class="pi pi-camera mr-2 text-primary"></i>Verificación de Identidad
+          </h3>
+          <p-divider />
+        </div>
+
+        @if (foundSubject(); as s) {
+          <div class="surface-100 border-round p-3 mb-4 flex align-items-center gap-3">
+            <i class="pi pi-user-circle text-primary" style="font-size:2.5rem"></i>
+            <div>
+              <p class="font-semibold text-900 m-0">{{ s.maskedFullName }}</p>
+              <p class="text-color-secondary text-sm m-0">{{ s.maskedEmail }}</p>
+              @if (s.maskedPhone) {
+                <p class="text-color-secondary text-sm m-0">{{ s.maskedPhone }}</p>
+              }
+              <p-tag value="Biometría registrada" severity="success" icon="pi pi-check" class="mt-1" />
+            </div>
+          </div>
+        }
+
+        <p class="text-color-secondary text-sm mb-3">
+          Por seguridad, confirme su identidad con reconocimiento facial.
+          Asegúrese de estar en un lugar bien iluminado y mirar directamente a la cámara.
+        </p>
+
+        <div class="border-round surface-50 p-4 text-center mb-4">
+
+          @if (!imagePreview() && !cameraActive()) {
+            <div class="border-2 border-dashed border-round p-5">
+              <i class="pi pi-camera text-5xl text-400 mb-3 block"></i>
+              <p class="text-color-secondary m-0 mb-3">Active la cámara para verificar su identidad.</p>
+              <p-button label="Abrir Cámara" icon="pi pi-video"
+                        severity="contrast" (onClick)="cameraActive.set(true)" />
+            </div>
+          }
+
+          @if (cameraActive()) {
+            <div class="flex flex-column align-items-center gap-3">
+              <webcam [trigger]="triggerObservable"
+                      (imageCapture)="handleImage($event)"
+                      [width]="320" [height]="240"
+                      mirrorImage="always"
+                      class="border-round shadow-2" />
+              <div class="flex gap-2">
+                <p-button label="Tomar Foto" icon="pi pi-camera"
+                          severity="contrast" (onClick)="takeSnapshot()" />
+                <p-button label="Cancelar" icon="pi pi-times"
+                          severity="danger" (onClick)="cameraActive.set(false)" />
+              </div>
+            </div>
+          }
+
+          @if (imagePreview()) {
+            <div class="flex flex-column align-items-center gap-3">
+              <div class="relative inline-block">
+                <img [src]="imagePreview()" alt="Captura facial"
+                     class="border-round shadow-3" style="max-width:250px" />
+                <span class="absolute top-0 right-0 m-1">
+                  <p-tag value="Capturada" severity="success" icon="pi pi-check" />
+                </span>
+              </div>
+              <p-button label="Repetir Captura" icon="pi pi-refresh"
+                        severity="contrast" size="small" (onClick)="retake()" />
+            </div>
+          }
+        </div>
+
+        <div class="flex justify-content-between">
+          <p-button label="Volver" icon="pi pi-arrow-left"
+                    severity="secondary" [text]="true"
+                    (onClick)="goBack('lookup')" />
+          <p-button label="Continuar" icon="pi pi-arrow-right" iconPos="right"
+                    severity="contrast"
+                    [disabled]="!imagePreview()"
+                    (onClick)="confirmAndContinue()" />
+        </div>
+      }
+      @if (step() === 'form') {
+        <div class="mb-3">
+          <h3 class="text-900 font-semibold m-0">
+            <i class="pi pi-file-edit mr-2 text-primary"></i>Tipo de Solicitud
+          </h3>
+          <p-divider />
+        </div>
+        <div class="grid mb-4">
+          @for (type of typeOptions; track type) {
+            <div class="col-12 md:col-6 lg:col-4">
+              <div class="border-round p-3 cursor-pointer transition-all transition-duration-200"
+                   [ngClass]="selectedType() === type
+                     ? 'border-2 surface-100'
+                     : 'border-1 surface-card'"
+                   [style.borderColor]="selectedType() === type
+                     ? 'var(--primary-color)'
+                     : 'var(--surface-300)'"
+                   (click)="selectedType.set(type)">
+                <div class="flex align-items-center gap-2">
+                  <i [ngClass]="REQUEST_TYPE_ICONS[type] + ' text-primary'"
+                     style="font-size:1.2rem"></i>
+                  <span class="font-medium text-sm">{{ REQUEST_TYPE_LABELS[type] }}</span>
+                </div>
+              </div>
+            </div>
+          }
+        </div>
+        @if (showCancelWarn()) {
+          <div class="border-round p-3 mb-4 flex gap-2">
+            <i class="pi pi-exclamation-triangle text-red-500 mt-1"></i>
+            <div class="text-sm text-800">
+              <strong>Atención:</strong> Al solicitar la cancelación, sus datos personales serán
+              enmascarados irreversiblemente una vez que el responsable apruebe la solicitud.
+              Esta acción no puede deshacerse.
+            </div>
+          </div>
+        }
+        @if (showUpdateForm()) {
+          <div class="surface-100 border-round p-4 mb-4">
+            <h4 class="text-900 font-semibold m-0 mb-3">
+              <i class="pi pi-pencil mr-2 text-primary"></i>Datos a rectificar
+            </h4>
+            <p class="text-color-secondary text-sm mb-3">
+              Complete solo los campos que requieran corrección. Los cambios se aplicarán
+              una vez que el responsable apruebe la solicitud.
+            </p>
+            <div class="formgrid grid">
+              <div class="col-12 md:col-6 field">
+                <label class="font-medium">Nombre completo</label>
+                <input pInputText class="w-full" placeholder="Nombre correcto"
+                       [value]="updateData().fullName ?? ''"
+                       (input)="setUpdateField('fullName', $any($event.target).value)" />
+              </div>
+              <div class="col-12 md:col-6 field">
+                <label class="font-medium">Correo electrónico</label>
+                <input pInputText class="w-full" placeholder="correo@ejemplo.com"
+                       [value]="updateData().email ?? ''"
+                       (input)="setUpdateField('email', $any($event.target).value)" />
+              </div>
+              <div class="col-12 md:col-6 field">
+                <label class="font-medium">Teléfono</label>
+                <input pInputText class="w-full" placeholder="0 99 999 9999"
+                       [value]="updateData().phone ?? ''"
+                       (input)="setUpdateField('phone', $any($event.target).value)" />
+              </div>
+              <div class="col-12 md:col-6 field">
+                <label class="font-medium">Dirección</label>
+                <input pInputText class="w-full" placeholder="Dirección correcta"
+                       [value]="updateData().address ?? ''"
+                       (input)="setUpdateField('address', $any($event.target).value)" />
+              </div>
+            </div>
+          </div>
+        }
+
+        <div class="field mb-4">
+          <label class="font-medium">Descripción adicional (opcional)</label>
+          <textarea pTextarea rows="3" class="w-full"
+                    placeholder="Describa brevemente su solicitud..."
+                    [value]="description()"
+                    (input)="description.set($any($event.target).value)">
+          </textarea>
+        </div>
+        <div class="flex justify-content-between">
+          <p-button label="Volver" icon="pi pi-arrow-left"
+                    severity="secondary" [text]="true"
+                    (onClick)="goBack('verify')" />
+          <p-button label="Enviar Solicitud" icon="pi pi-send" iconPos="right"
+                    severity="contrast"
+                    [loading]="submitLoading()"
+                    (onClick)="onSubmit()" />
+        </div>
+      }
+      @if (step() === 'success') {
+        <div class="flex flex-column align-items-center text-center py-4 gap-4">
+          <i class="pi pi-check-circle text-green-500" style="font-size:4rem"></i>
+          <div>
+            <h3 class="text-900 font-bold m-0 mb-2">¡Solicitud enviada exitosamente!</h3>
+            <p class="text-color-secondary m-0">
+              Su solicitud será procesada en un plazo máximo de
+              <strong>15 días hábiles</strong>.
+            </p>
+          </div>
+          <div class="surface-100 border-round p-3 w-full">
+            <p class="text-sm text-color-secondary m-0 mb-1">Número de solicitud</p>
+            <code class="text-sm" style="word-break:break-all">{{ createdId() }}</code>
+          </div>
+          <div class="border-round p-3 w-full text-sm">
+            <i class="pi pi-info-circle mr-2"></i>
+            Recibirá una notificación cuando su solicitud sea procesada por el responsable de protección de datos.
+          </div>
+          <p-button label="Realizar otra solicitud" icon="pi pi-plus"
+                    severity="contrast" (onClick)="reset()" />
+        </div>
+      }
+    </div>
+  </p-card>
+</div>

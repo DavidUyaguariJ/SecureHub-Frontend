@@ -12,4 +12,20 @@ export const routes: Routes = [
       roles: ['admin_role']
     }
   },
+  {
+    path: 'arco-manage',
+    loadComponent: () => import('./components/arco-management/arco-manage/arco-manage').then(m => m.ArcoManage),
+    canActivate: [AuthGuard],
+    data: {
+      roles: ['admin_role']
+    }
+  },
+  {
+    path: 'arco-request',
+    loadComponent: () => import('./components/arco-management/arco-recuest/arco-request').then(m => m.ArcoRequest),
+    canActivate: [AuthGuard],
+    data: {
+      roles: ['admin_role', 'applicant-role']
+    }
+  }
 ];

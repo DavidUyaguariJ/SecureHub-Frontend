@@ -36,20 +36,33 @@ export class App implements OnInit {
 
   ngOnInit(): void {
     this.items = [
-      {label: 'Home', icon: 'pi pi-home', routerLink: '/'},
       {
-        label: 'Datos personales',
+        label: 'Home',
+        icon: 'pi pi-home',
+        routerLink: '/'
+      },
+      ...(this.auth.hasAnyRole(['admin_role', 'applicant_role']) ? [{
+        label: 'Gestión de consentimientos',
+        icon: 'pi pi-book',
+        routerLink: '/manage-consent'
+      }] : []),
+      {
+        label: 'Derechos ARCO',
         icon: 'pi pi-list-check',
         items: [
-          ...(this.auth.hasRole('admin_role') ? [
-            {
-              label: 'Gestión de consentimientos',
-              icon: 'pi pi-book',
-              routerLink: '/manage-consent'
-            }
-          ] : [])
+          ...(this.auth.hasAnyRole(['admin_role', 'technician_role']) ? [{
+            label: 'Gestionar Solicitudes ARCO',
+            icon: 'pi pi-cog',
+            routerLink: '/arco-manage'
+          }] : []),
+
+          ...(this.auth.hasAnyRole(['admin_role', 'applicant_role']) ? [{
+            label: 'Generar Solicitud ARCO',
+            icon: 'pi pi-plus',
+            routerLink: '/arco-request'
+          }] : [])
         ]
-      },
+      }
     ];
   }
 

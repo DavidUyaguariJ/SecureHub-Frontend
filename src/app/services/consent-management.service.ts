@@ -1,8 +1,8 @@
 import {inject, Injectable} from '@angular/core';
 import {environment} from '../../environments/environment';
 import {HttpClient} from '@angular/common/http';
-import {RegisterSubjectData} from '../dtos/register-subject-data';
-import {RegisterSubjectDataResponse} from '../dtos/register-subject-data-response';
+import {RegisterSubjectData} from '../dtos/subject-management/register-subject-data';
+import {RegisterSubjectDataResponse} from '../dtos/subject-management/register-subject-data-response';
 import {Observable} from 'rxjs';
 
 @Injectable({

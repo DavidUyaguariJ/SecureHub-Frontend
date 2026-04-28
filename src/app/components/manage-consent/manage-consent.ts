@@ -9,10 +9,10 @@ import {email, form, FormField, pattern, required} from '@angular/forms/signals'
 import {WebcamImage, WebcamModule} from 'ngx-webcam';
 import {CommonModule} from '@angular/common';
 import {firstValueFrom, Observable, Subject} from 'rxjs';
-import {RegisterSubjectData} from '../../dtos/register-subject-data';
+import {RegisterSubjectData} from '../../dtos/subject-management/register-subject-data';
 import {ConsentManagerService} from '../../services/consent-management.service';
-import {DeviceData} from '../../dtos/device-data';
-import {SubjectFromData} from '../../dtos/subject-from-data';
+import {DeviceData} from '../../dtos/subject-management/device-data';
+import {SubjectFromData} from '../../dtos/subject-management/subject-from-data';
 import {Dialog} from 'primeng/dialog';
 import {Tag} from 'primeng/tag';
 import {Divider} from 'primeng/divider';
