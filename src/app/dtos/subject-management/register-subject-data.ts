@@ -9,8 +9,4 @@ export interface RegisterSubjectData {
   subjectType: string;
   contactPerson: string;
   devices: DeviceData[];
-  biometricImageBase64: string;
-  consentText: string;
-  templateType: string;
-  digitalSignature: string;
 }
