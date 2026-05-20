@@ -98,8 +98,7 @@
 
       <div class="col-12">
         @if (devices().length === 0) {
-          <div class="border-2 border-dashed border-round p-4 text-center text-color-secondary"
-               style="border-color: var(--surface-400)">
+          <div class="border-2 border-dashed border-round p-4 text-center text-color-secondary">
             <i class="pi pi-desktop text-3xl mb-2 block"></i>
             <p class="m-0">No hay dispositivos registrados. Agregue al menos uno.</p>
           </div>
@@ -145,93 +144,28 @@
       </div>
       <div class="col-12 mt-3 mb-2">
         <h3 class="text-900 font-semibold m-0">
-          <i class="pi pi-eye mr-2 text-primary"></i>Consentimiento Biométrico
+          <i class="pi pi-envelope mr-2 text-primary"></i>Acceso del Titular
         </h3>
         <p-divider />
       </div>
       <div class="col-12">
-        <div class="surface-100 border-round p-3 mb-3 text-sm line-height-3">
+        <div class="surface-100 border-round p-3 text-sm line-height-3">
           <p class="m-0 font-medium text-900 mb-2">
             <i class="pi pi-info-circle mr-1 text-primary"></i>
-            Aviso de Tratamiento de Datos Biométricos
+            ¿Qué ocurre al registrar?
           </p>
-          <p class="m-0 text-700">
-            De conformidad con la <strong>Ley Orgánica de Protección de Datos Personales (LOPDP)</strong>
-            del Ecuador y su Reglamento, le informamos que los datos biométricos (imagen facial) que
-            proporcione a continuación serán tratados por <strong>SecureHub</strong> con la finalidad
-            de verificar y autenticar su identidad en el marco del presente registro de cumplimiento.
-          </p>
-          <p class="m-0 text-700 mt-2">
-            Al capturar y enviar su imagen, usted <strong>otorga su consentimiento expreso, libre,
-            específico e informado</strong> para el tratamiento de sus datos biométricos, conforme
-            al <strong>Art. 9 de la LOPDP</strong>. Podrá ejercer sus derechos de acceso,
-            rectificación, cancelación y oposición (ARCO) contactando al responsable del tratamiento.
-          </p>
+          <ul class="m-0 pl-4 text-700" style="line-height:2">
+            <li>
+              Se enviará un correo electrónico para culminar el proceso de autorización y validación de datos.
+            </li>
+          </ul>
         </div>
       </div>
-      <div class="col-12">
-        <div class="border-round surface-50 p-4 text-center">
-          @if (!imagePreview() && !isCameraActive()) {
-            <div class="border-2 border-dashed border-round p-5"
-                 style="border-color: var(--surface-400)">
-              <i class="pi pi-user text-5xl text-400 mb-3 block"></i>
-              <p class="text-color-secondary m-0 mb-3">
-                Se requiere una captura facial para registrar el consentimiento biométrico.
-              </p>
-              <p-button label="Abrir Cámara"
-                        icon="pi pi-video"
-                        severity="contrast"
-                        (onClick)="toggleCamera()" />
-            </div>
-          }
-          @if (isCameraActive()) {
-            <div class="flex flex-column align-items-center gap-3">
-              <webcam [trigger]="triggerObservable"
-                      (imageCapture)="handleImage($event)"
-                      [width]="320"
-                      [height]="240"
-                      mirrorImage="always"
-                      class="border-round shadow-2" />
-              <div class="flex gap-2">
-                <p-button label="Tomar Foto"
-                          icon="pi pi-camera"
-                          severity="contrast"
-                          (onClick)="takeSnapshot()" />
-                <p-button label="Cancelar"
-                          icon="pi pi-times"
-                          severity="danger"
-                          (onClick)="toggleCamera()" />
-              </div>
-            </div>
-          }
-          @if (imagePreview()) {
-            <div class="flex flex-column align-items-center gap-3">
-              <div class="relative inline-block">
-                <img [src]="imagePreview()"
-                     alt="Captura biométrica"
-                     class="border-round shadow-3"
-                     style="max-width: 250px" />
-                <span class="absolute top-0 right-0 m-1">
-                  <p-tag value="Capturada" severity="success" icon="pi pi-check" />
-                </span>
-              </div>
-              <p class="text-sm text-color-secondary m-0">
-                <i class="pi pi-check-circle text-green-500 mr-1"></i>
-                Al enviar este formulario confirma su consentimiento para el tratamiento biométrico.
-              </p>
-              <p-button label="Repetir Captura"
-                        icon="pi pi-refresh"
-                        severity="contrast"
-                        size="small"
-                        (onClick)="resetCapture()" />
-            </div>
-          }
-        </div>
-      </div>
+
       <div class="col-12 mt-4">
         <p-button type="submit"
-                  label="Registrar Consentimiento"
-                  icon="pi pi-save"
+                  label="Registrar y Enviar Credenciales"
+                  icon="pi pi-send"
                   severity="contrast"
                   [loading]="loading()"
                   styleClass="w-full" />
@@ -240,6 +174,7 @@
     </form>
   </p-card>
 </div>
+
 <p-dialog [header]="editingIndex() !== null ? 'Editar Dispositivo' : 'Agregar Dispositivo'"
           [visible]="showDeviceDialog()"
           (visibleChange)="showDeviceDialog.set($event)"

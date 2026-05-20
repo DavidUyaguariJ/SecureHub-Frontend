@@ -9,7 +9,7 @@ import {Tag} from 'primeng/tag';
 import {ProgressSpinner} from 'primeng/progressspinner';
 import {TextareaModule} from 'primeng/textarea';
 import {MessageService} from 'primeng/api';
-import {ArcoService} from '../../../services/arco-service';
+import {ArcoService} from '../../../services/arco.service';
 import {SubjectLookupDto} from '../../../dtos/arco-management/subject-lookup-dto';
 import {firstValueFrom, Observable, Subject} from 'rxjs';
 import {ArcoRequestType} from '../../../enums/arco-request-type';
@@ -24,9 +24,16 @@ import {ArcoRequestResponseDto} from '../../../dtos/arco-management/arco-request
   selector: 'app-arco-request',
   standalone: true,
   imports: [
-    CommonModule, WebcamModule,
-    CardModule, ButtonModule, InputTextModule,
-    ToastModule, Divider, Tag, ProgressSpinner, TextareaModule,
+    CommonModule,
+    WebcamModule,
+    CardModule,
+    ButtonModule,
+    InputTextModule,
+    ToastModule,
+    Divider,
+    Tag,
+    ProgressSpinner,
+    TextareaModule,
   ],
   providers: [MessageService],
   templateUrl: './arco-request.html',
@@ -36,8 +43,15 @@ export class ArcoRequest {
   readonly messageService = inject(MessageService);
 
   step: WritableSignal<ArcoStep> = signal('lookup');
+
   stepIndex = computed((): number => {
-    const map: Record<ArcoStep, number> = {lookup: 0, verify: 1, form: 2, success: 3};
+    const map: Record<ArcoStep, number> = {
+      lookup: 0,
+      verify: 1,
+      form: 2,
+      success: 3,
+    };
+
     return map[this.step()];
   });
 
@@ -56,40 +70,68 @@ export class ArcoRequest {
   imagePreview: WritableSignal<string | null> = signal(null);
   biometricBase64: WritableSignal<string> = signal('');
 
-  selectedType: WritableSignal<ArcoRequestType> = signal<ArcoRequestType>('ACCESO');
+  selectedType: WritableSignal<ArcoRequestType> =
+    signal<ArcoRequestType>('ACCESO');
+
   description: WritableSignal<string> = signal('');
+
   updateData: WritableSignal<UpdateSubjectDataDto> = signal({});
+
   submitLoading: WritableSignal<boolean> = signal(false);
 
   createdId: WritableSignal<string> = signal('');
 
-  showUpdateForm = computed(() => this.selectedType() === 'RECTIFICACION');
-  showCancelWarn = computed(() => this.selectedType() === 'CANCELACION');
+  showUpdateForm = computed(
+    (): boolean => this.selectedType() === 'RECTIFICACION'
+  );
+
+  showCancelWarn = computed(
+    (): boolean => this.selectedType() === 'CANCELACION'
+  );
 
   readonly REQUEST_TYPE_LABELS = REQUEST_TYPE_LABELS;
   readonly REQUEST_TYPE_ICONS = REQUEST_TYPE_ICONS;
-  readonly typeOptions = Object.keys(REQUEST_TYPE_LABELS) as ArcoRequestType[];
+
+  readonly typeOptions = Object.keys(
+    REQUEST_TYPE_LABELS
+  ) as ArcoRequestType[];
 
   async onLookup(): Promise<void> {
     const id = this.identification().trim();
+
     if (!id) {
       return;
     }
+
     this.lookupLoading.set(true);
     this.lookupError.set('');
+
     try {
-      const subject = await firstValueFrom(this.arcoService.lookupSubject(id));
+      const subject = await firstValueFrom(
+        this.arcoService.lookupSubject(id)
+      );
+
       this.foundSubject.set(subject);
+
       if (!subject.hasBiometrics) {
-        this.lookupError.set('El titular no tiene biometría registrada. No puede presentar solicitudes ARCO.');
+        this.lookupError.set(
+          'El titular no tiene biometría registrada. No puede presentar solicitudes ARCO.'
+        );
+
         return;
       }
+
       this.step.set('verify');
       this.cameraActive.set(true);
     } catch (err: unknown) {
-      const e = err as { error?: { message?: string }; status?: number };
+      const e = err as {
+        error?: { message?: string };
+        status?: number;
+      };
+
       this.lookupError.set(
-        e?.error?.message ?? (e?.status === 404
+        e?.error?.message ??
+        (e?.status === 404
           ? 'No se encontró ningún titular con esa identificación.'
           : 'Error al consultar. Intente nuevamente.')
       );
@@ -118,29 +160,95 @@ export class ArcoRequest {
     this.step.set('form');
   }
 
-  setUpdateField(field: keyof UpdateSubjectDataDto, value: string): void {
-    this.updateData.update(d => ({...d, [field]: value || undefined}));
+  setUpdateField(
+    field: keyof UpdateSubjectDataDto,
+    value: string
+  ): void {
+    this.updateData.update((d) => ({
+      ...d,
+      [field]: value || undefined,
+    }));
+  }
+
+  private buildCreateDto(
+    subject: SubjectLookupDto
+  ): CreateArcoRequestDto {
+    return {
+      subjectId: subject.id,
+      requestType: this.selectedType(),
+      description: this.description() || undefined,
+      imageBase64: this.biometricBase64(),
+      updatedData: this.showUpdateForm()
+        ? this.updateData()
+        : undefined,
+    };
+  }
+
+  private getSubmitErrorMessage(
+    e: {
+      error?: { message?: string };
+      status?: number;
+    }
+  ): string {
+    if (e?.error?.message) {
+      return e.error.message;
+    }
+
+    if (e?.status === 401) {
+      return 'Verificación biométrica fallida. Intente nuevamente.';
+    }
+
+    return 'Error al enviar la solicitud.';
+  }
+
+  private handleError(
+    err: unknown,
+    fallback: string
+  ): void {
+    const e = err as {
+      error?: { message?: string };
+      status?: number;
+    };
+
+    this.messageService.add({
+      severity: 'error',
+      summary: 'Error',
+      detail: e?.error?.message ?? fallback,
+    });
   }
 
   async onSubmit(): Promise<void> {
     const subject = this.foundSubject();
-    if (!subject || !this.biometricBase64()) {return;}
-    const dto: CreateArcoRequestDto = {
-      subjectId: subject.id, requestType: this.selectedType(), description: this.description() || undefined,
-      imageBase64: this.biometricBase64(), updatedData: this.showUpdateForm() ? this.updateData() : undefined,
-    };
+
+    if (!subject || !this.biometricBase64()) {
+      return;
+    }
+
+    const dto = this.buildCreateDto(subject);
+
     this.submitLoading.set(true);
+
     try {
-      const res:ArcoRequestResponseDto = await firstValueFrom(this.arcoService.createRequest(dto));
+      const res: ArcoRequestResponseDto =
+        await firstValueFrom(
+          this.arcoService.createRequest(dto)
+        );
+
       this.createdId.set(res.id);
       this.step.set('success');
     } catch (err: unknown) {
-      const e = err as { error?: { message?: string }; status?: number };
+      const message = this.getSubmitErrorMessage(
+        err as {
+          error?: { message?: string };
+          status?: number;
+        }
+      );
+
       this.messageService.add({
-        severity: 'error', summary: 'Error',
-        detail: e?.error?.message ?? (e?.status === 401
-          ? 'Verificación biométrica fallida. Intente nuevamente.'
-          : 'Error al enviar la solicitud.'), life: 7000,
+        severity: 'error',
+        summary: 'Error',
+        detail: message,
+        life: 7000,
       });
     } finally {
       this.submitLoading.set(false);
@@ -152,7 +260,11 @@ export class ArcoRequest {
       this.foundSubject.set(null);
       this.lookupError.set('');
     }
-    if (to === 'verify'){ this.retake();}
+
+    if (to === 'verify') {
+      this.retake();
+    }
+
     this.step.set(to);
   }
 
@@ -170,4 +282,3 @@ export class ArcoRequest {
     this.createdId.set('');
   }
 }
-

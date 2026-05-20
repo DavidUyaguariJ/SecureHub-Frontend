@@ -1,0 +1,263 @@
+<!-- subject-portal.html -->
+<p-toast />
+
+<div class="flex justify-content-center align-items-start p-4" style="min-height: 80vh">
+  <p-card class="w-full md:w-8 lg:w-6 xl:w-5 shadow-3 border-round-2xl">
+    <ng-template pTemplate="header">
+      <div class="p-4 pb-0">
+        <div class="flex align-items-center gap-3 mb-2">
+          <i class="pi pi-user-circle text-primary" style="font-size:2rem"></i>
+          <div>
+            <h2 class="text-900 font-bold m-0">Mi Portal de Datos</h2>
+            <small class="text-color-secondary">Newbie SecureHub — Protección de Datos Personales</small>
+          </div>
+        </div>
+        <p-divider />
+      </div>
+    </ng-template>
+    <div class="p-fluid">
+      @if (step() === 'loading' || loading()) {
+        <div class="flex flex-column justify-content-center align-items-center py-6 gap-3">
+          <p-progressSpinner strokeWidth="4" style="width:52px;height:52px" />
+          <span class="text-color-secondary">Cargando información...</span>
+        </div>
+      }
+
+      @if (step() === 'lookup' && !loading()) {
+        <div class="flex flex-column gap-3">
+          <p class="text-color-secondary text-sm m-0">
+            Ingrese la cédula, RUC o pasaporte del titular para consultar su información.
+          </p>
+          <div class="p-inputgroup">
+            <span class="p-inputgroup-addon">
+              <i class="pi pi-search"></i>
+            </span>
+            <input pInputText
+                   type="text"
+                   placeholder="Cédula / RUC / Pasaporte"
+                   [ngModel]="identification()"
+                   (ngModelChange)="identification.set($event)"
+                   (keyup.enter)="searchSubject()" />
+          </div>
+          <p-button label="Buscar"
+                    icon="pi pi-search"
+                    severity="contrast"
+                    styleClass="w-full"
+                    [loading]="loading()"
+                    (onClick)="searchSubject()" />
+        </div>
+      }
+
+      @if (step() === 'first-time' && !loading()) {
+        @if (subjectData(); as d) {
+          <div class="flex flex-column gap-4">
+
+            <div class="border-round p-3 text-sm">
+              <i class="pi pi-info-circle mr-2"></i>
+              <strong>Bienvenido.</strong> Hemos encontrado sus datos. Para acceder a la información completa
+              y ejercer sus derechos ARCO, debe registrar su biometría facial.
+            </div>
+            <div class="surface-100 border-round p-3">
+              <p class="font-medium text-900 m-0 mb-3 text-sm">
+                <i class="pi pi-eye-slash mr-2 text-primary"></i>Vista previa de sus datos
+              </p>
+              <div class="formgrid grid m-0">
+                <div class="col-12 md:col-6 field">
+                  <label class="font-medium text-color-secondary text-xs">Nombre</label>
+                  <p class="text-900 m-0 font-semibold">{{ maskName(d.fullName) }}</p>
+                </div>
+                <div class="col-12 md:col-6 field">
+                  <label class="font-medium text-color-secondary text-xs">Correo</label>
+                  <p class="text-900 m-0">{{ maskEmail(d.email) }}</p>
+                </div>
+                <div class="col-12 md:col-6 field">
+                  <label class="font-medium text-color-secondary text-xs">Teléfono</label>
+                  <p class="text-900 m-0">{{ maskPhone(d.phone) }}</p>
+                </div>
+                <div class="col-12 md:col-6 field">
+                  <label class="font-medium text-color-secondary text-xs">Identificación</label>
+                  <p class="text-900 m-0">{{ d.identification.slice(0, -3) + '***' }}</p>
+                </div>
+              </div>
+            </div>
+            <div class="surface-50 border-round p-3 text-sm">
+              <strong class="block mb-1">Consentimiento biométrico:</strong>
+              <span class="text-color-secondary">{{ consentText }}</span>
+            </div>
+
+            <p-button label="Registrar biometría facial"
+                      icon="pi pi-camera"
+                      severity="contrast"
+                      styleClass="w-full"
+                      (onClick)="step.set('register-biometric'); openCamera()" />
+          </div>
+        }
+      }
+
+      @if (step() === 'register-biometric' && !loading()) {
+        <div class="flex flex-column gap-3">
+          <div>
+            <h3 class="text-900 font-semibold m-0">
+              <i class="pi pi-camera mr-2 text-primary"></i>Captura facial
+            </h3>
+            <p-divider />
+            <p class="text-color-secondary text-sm m-0">
+              Mire directamente a la cámara en un lugar bien iluminado.
+            </p>
+          </div>
+
+          <div class="border-round surface-50 p-3 text-center">
+            @if (!imagePreview() && !cameraActive()) {
+              <div class="border-2 border-dashed border-round p-5">
+                <i class="pi pi-camera text-5xl text-400 mb-3 block"></i>
+                <p-button label="Abrir Cámara" icon="pi pi-video"
+                          severity="contrast" (onClick)="openCamera()" />
+              </div>
+            }
+            @if (cameraActive()) {
+              <div class="flex flex-column align-items-center gap-3">
+                <webcam [trigger]="triggerObservable"
+                        (imageCapture)="handleImage($event)"
+                        [width]="320" [height]="240"
+                        mirrorImage="always"
+                        class="border-round shadow-2" />
+                <div class="flex gap-2">
+                  <p-button label="Tomar Foto" icon="pi pi-camera"
+                            severity="contrast" (onClick)="takeSnapshot()" />
+                  <p-button label="Cancelar" icon="pi pi-times"
+                            severity="danger" (onClick)="cameraActive.set(false)" />
+                </div>
+              </div>
+            }
+            @if (imagePreview()) {
+              <div class="flex flex-column align-items-center gap-3">
+                <img [src]="imagePreview()" alt="Captura"
+                     class="border-round shadow-3" style="max-width:260px" />
+                <p-button label="Repetir" icon="pi pi-refresh"
+                          severity="contrast" size="small" (onClick)="retake()" />
+              </div>
+            }
+          </div>
+
+          <div class="flex justify-content-between gap-2">
+            <p-button label="Volver" icon="pi pi-arrow-left"
+                      severity="secondary" [text]="true"
+                      (onClick)="step.set('first-time')" />
+            <p-button label="Guardar biometría" icon="pi pi-check" iconPos="right"
+                      severity="contrast"
+                      [disabled]="!imagePreview()" [loading]="loading()"
+                      (onClick)="registerBiometric()" />
+          </div>
+        </div>
+      }
+
+      @if (step() === 'verify-biometric' && !loading()) {
+        <div class="flex flex-column gap-3">
+          <div class="flex flex-column align-items-center text-center gap-3 py-2">
+            <i class="pi pi-shield text-primary" style="font-size:3rem"></i>
+            <div>
+              <h3 class="text-900 font-bold m-0 mb-1">Verificación de identidad</h3>
+              <p class="text-color-secondary m-0 text-sm">
+                Confirme su identidad mediante reconocimiento facial para acceder a sus datos.
+              </p>
+            </div>
+          </div>
+
+          <div class="border-round surface-50 p-3 text-center">
+            @if (!imagePreview() && !cameraActive()) {
+              <div class="border-2 border-dashed border-round p-5">
+                <i class="pi pi-camera text-5xl text-400 mb-3 block"></i>
+                <p-button label="Abrir Cámara" icon="pi pi-video"
+                          severity="contrast" (onClick)="openCamera()" />
+              </div>
+            }
+            @if (cameraActive()) {
+              <div class="flex flex-column align-items-center gap-3">
+                <webcam [trigger]="triggerObservable"
+                        (imageCapture)="handleImage($event)"
+                        [width]="320" [height]="240"
+                        mirrorImage="always"
+                        class="border-round shadow-2" />
+                <div class="flex gap-2">
+                  <p-button label="Tomar Foto" icon="pi pi-camera"
+                            severity="contrast" (onClick)="takeSnapshot()" />
+                  <p-button label="Cancelar" icon="pi pi-times"
+                            severity="danger" (onClick)="cameraActive.set(false)" />
+                </div>
+              </div>
+            }
+            @if (imagePreview()) {
+              <div class="flex flex-column align-items-center gap-3">
+                <img [src]="imagePreview()" alt="Captura"
+                     class="border-round shadow-3" style="max-width:260px" />
+                <p-button label="Repetir" icon="pi pi-refresh"
+                          severity="contrast" size="small" (onClick)="retake()" />
+              </div>
+            }
+          </div>
+
+          <div class="flex justify-content-end">
+            <p-button label="Verificar identidad" icon="pi pi-lock-open" iconPos="right"
+                      severity="contrast"
+                      [disabled]="!imagePreview()" [loading]="loading()"
+                      (onClick)="verifyBiometric()" />
+          </div>
+        </div>
+      }
+
+      @if (step() === 'data' && !loading()) {
+        @if (subjectData(); as d) {
+          <div class="flex flex-column gap-3">
+            <div class="flex align-items-center gap-2">
+              <i class="pi pi-check-circle text-green-500" style="font-size:1.4rem"></i>
+              <span class="font-semibold text-900">Identidad verificada</span>
+              <p-tag value="Solo lectura" severity="info" styleClass="ml-auto" />
+            </div>
+
+            <p-divider />
+
+            <div class="formgrid grid m-0">
+              <div class="col-12 md:col-6 field">
+                <label class="font-medium text-color-secondary text-xs block mb-1">Identificación</label>
+                <p class="text-900 m-0 font-semibold">{{ d.identification }}</p>
+              </div>
+              <div class="col-12 md:col-6 field">
+                <label class="font-medium text-color-secondary text-xs block mb-1">Nombre completo</label>
+                <p class="text-900 m-0 font-semibold">{{ d.fullName }}</p>
+              </div>
+              <div class="col-12 md:col-6 field">
+                <label class="font-medium text-color-secondary text-xs block mb-1">Correo electrónico</label>
+                <p class="text-900 m-0">{{ d.email }}</p>
+              </div>
+              <div class="col-12 md:col-6 field">
+                <label class="font-medium text-color-secondary text-xs block mb-1">Teléfono</label>
+                <p class="text-900 m-0">{{ d.phone ?? '—' }}</p>
+              </div>
+              @if (d.address) {
+                <div class="col-12 field">
+                  <label class="font-medium text-color-secondary text-xs block mb-1">Dirección</label>
+                  <p class="text-900 m-0">{{ d.address }}</p>
+                </div>
+              }
+              @if (d.contactPerson) {
+                <div class="col-12 field">
+                  <label class="font-medium text-color-secondary text-xs block mb-1">Persona de contacto</label>
+                  <p class="text-900 m-0">{{ d.contactPerson }}</p>
+                </div>
+              }
+            </div>
+
+            <p-divider />
+
+            <div class="surface-100 border-round p-3 text-sm">
+              <i class="pi pi-info-circle mr-2 text-primary"></i>
+              Para solicitar acceso, rectificación, cancelación u otros derechos,
+              utilice el módulo de <strong>Solicitudes ARCO</strong>.
+            </div>
+          </div>
+        }
+      }
+
+    </div>
+  </p-card>
+</div>

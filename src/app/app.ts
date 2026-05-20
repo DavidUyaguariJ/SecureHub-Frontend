@@ -41,10 +41,15 @@ export class App implements OnInit {
         icon: 'pi pi-home',
         routerLink: '/'
       },
-      ...(this.auth.hasAnyRole(['admin_role', 'applicant_role']) ? [{
+      ...(this.auth.hasAnyRole(['admin_role', 'technician_role']) ? [{
         label: 'Gestión de consentimientos',
         icon: 'pi pi-book',
         routerLink: '/manage-consent'
+      }] : []),
+      ...(this.auth.hasAnyRole(['admin_role', 'applicant_role']) ? [{
+        label: 'Registro Biométrico-Mis Datos',
+        icon: 'pi pi-face-smile',
+        routerLink: '/my-data'
       }] : []),
       {
         label: 'Derechos ARCO',
