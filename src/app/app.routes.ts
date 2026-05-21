@@ -12,13 +12,13 @@ export const routes: Routes = [
     path: 'manage-consent',
     loadComponent: () => import('./components/manage-consent/manage-consent').then(m => m.ManageConsent),
     canActivate: [AuthGuard],
-    data: { roles: ['admin_role'] }
+    data: { roles: ['admin_role', 'technician_role'] }
   },
   {
     path: 'arco-manage',
     loadComponent: () => import('./components/arco-management/arco-manage/arco-manage').then(m => m.ArcoManage),
     canActivate: [AuthGuard],
-    data: { roles: ['admin_role'] }
+    data: { roles: ['admin_role', 'technician_role'] }
   },
   {
     path: 'arco-request',
