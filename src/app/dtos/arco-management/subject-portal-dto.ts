@@ -1,3 +1,5 @@
+import {DevicePortalDto} from './device-portal';
+
 export interface SubjectPortalDto {
   id: string;
   identification: string;
@@ -9,4 +11,5 @@ export interface SubjectPortalDto {
   contactPerson?: string;
   hasBiometrics: boolean;
   createdAt: string;
+  devices: DevicePortalDto[];
 }

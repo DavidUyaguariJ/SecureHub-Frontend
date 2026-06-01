@@ -5,5 +5,5 @@ export const environment = {
     realm: 'develop',
     clientId: 'SecureHub'
   },
-  baseUrl: "https://des-apis.securehub.com"
+  baseUrl: "https://localhost:7255"
 };

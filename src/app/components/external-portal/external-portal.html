@@ -1,0 +1,171 @@
+<p-toast/>
+
+<div class="flex justify-content-center p-4">
+  <div class="w-full xl:w-8">
+    <div class="flex align-items-center gap-3 mb-4">
+      <i class="pi pi-shield text-primary" style="font-size:2rem"></i>
+      <div class="flex flex-column">
+        <span class="text-2xl font-bold">Portal de Acceso Externo</span>
+        <span class="text-color-secondary text-sm">
+          Consulta de datos autorizados por contrato
+        </span>
+      </div>
+    </div>
+    @if (step() === 'search' || step() === 'error') {
+      <p-card class="mb-4 shadow-1 border-round-2xl">
+        <ng-template pTemplate="title">Consultar datos de titular</ng-template>
+        <ng-template pTemplate="subtitle">
+          Ingresa el ID del titular que el administrador te proporcionó por correo para verificar que es el correcto.
+        </ng-template>
+        @if (step() === 'error') {
+          <p-message
+            severity="error"
+            [text]="errorMsg()"
+            class="w-full mb-4">
+          </p-message>
+        }
+
+        <div class="flex flex-column md:flex-row gap-3 mt-3">
+          <input
+            pInputText
+            [ngModel]="searchId()"
+            (ngModelChange)="searchId.set($event)"
+            placeholder="ID del titular (UUID)..."
+            class="flex-1"
+            (keyup.enter)="search()"/>
+          <p-button
+            label="Consultar"
+            icon="pi pi-search"
+            severity="contrast"
+            [disabled]="!searchId().trim()"
+            (onClick)="search()">
+          </p-button>
+        </div>
+        @if (searchHistory().length > 0) {
+          <div class="mt-4">
+            <p-divider/>
+            <div class="flex align-items-center gap-2 mb-2">
+              <i class="pi pi-history text-color-secondary text-sm"></i>
+              <small class="text-color-secondary font-medium">Búsquedas recientes</small>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              @for (id of searchHistory(); track id) {
+                <p-button
+                  [label]="(id | slice:0:18) + '...'"
+                  severity="secondary"
+                  [text]="true"
+                  size="small"
+                  icon="pi pi-clock"
+                  (onClick)="searchFromHistory(id)">
+                </p-button>
+              }
+            </div>
+          </div>
+        }
+      </p-card>
+      <p-card class="shadow-1 border-round-2xl border-1 border-primary">
+        <div class="flex gap-3 align-items-start">
+          <i class="pi pi-info-circle text-primary text-xl mt-1"></i>
+          <div class="text-sm line-height-3 text-color">
+            <div class="font-semibold mb-2">Acceso basado en contrato</div>
+            <ul class="m-0 pl-3 text-color-secondary">
+              <li>Solo puedes consultar los datos autorizados en tu contrato.</li>
+              <li>El acceso está limitado al período de vigencia establecido.</li>
+              <li>Cada consulta queda registrada en blockchain para auditoría.</li>
+            </ul>
+          </div>
+        </div>
+      </p-card>
+    }
+    @if (step() === 'loading') {
+      <p-card class="shadow-1 border-round-2xl">
+        <div class="flex flex-column align-items-center justify-content-center py-8 gap-3">
+          <p-progressSpinner strokeWidth="4" class="w-4rem h-4rem"/>
+          <span class="text-color-secondary">Consultando datos...</span>
+        </div>
+      </p-card>
+    }
+    @if (step() === 'data' && subjectData()) {
+      <div class="flex align-items-center justify-content-between mb-4">
+        <div class="flex align-items-center gap-2">
+          <i class="pi pi-check-circle text-green-500 text-xl"></i>
+          <span class="font-semibold text-color">Datos encontrados</span>
+          <p-tag value="Acceso autorizado" severity="success"/>
+        </div>
+        <p-button
+          label="Nueva búsqueda"
+          icon="pi pi-arrow-left"
+          severity="secondary"
+          [outlined]="true"
+          size="small"
+          (onClick)="reset()">
+        </p-button>
+      </div>
+      <p-card class="mb-3 shadow-1 border-round-xl">
+        <div class="flex align-items-center gap-2">
+          <i class="pi pi-user text-color-secondary"></i>
+          <small class="text-color-secondary">ID consultado:</small>
+          <span class="font-mono text-sm text-color">{{ searchId() }}</span>
+        </div>
+      </p-card>
+      @for (entry of getDataEntries(); track entry.key) {
+        @if (!isDevicesField(entry.key)) {
+          <p-card class="mb-3 shadow-1 border-round-2xl">
+            <div class="flex align-items-center gap-3">
+              <i class="pi pi-tag text-primary"></i>
+              <div class="flex flex-column gap-1 flex-1">
+                <small class="text-color-secondary font-medium">{{ entry.label }}</small>
+                <span class="text-color font-medium">{{ formatValue(entry.value) }}</span>
+              </div>
+            </div>
+          </p-card>
+        }
+        @if (isDevicesField(entry.key)) {
+          <p-card class="mb-3 shadow-1 border-round-2xl">
+            <ng-template pTemplate="title">
+              <div class="flex align-items-center gap-2">
+                <i class="pi pi-desktop text-primary"></i>
+                <span>Dispositivos</span>
+                <p-tag [value]="entry.value?.length + ' dispositivos'" severity="info"/>
+              </div>
+            </ng-template>
+            <p-table
+              [value]="entry.value"
+              class="p-datatable-sm mt-2">
+              <ng-template pTemplate="header">
+                <tr>
+                  <th>Tipo</th>
+                  <th>Marca</th>
+                  <th>Modelo</th>
+                  <th>N° Serie</th>
+                </tr>
+              </ng-template>
+              <ng-template pTemplate="body" let-d>
+                <tr>
+                  <td>{{ d.deviceType ?? '—' }}</td>
+                  <td>{{ d.brand ?? '—' }}</td>
+                  <td>{{ d.model ?? '—' }}</td>
+                  <td class="font-mono text-sm">{{ d.serialNumber ?? '—' }}</td>
+                </tr>
+              </ng-template>
+              <ng-template pTemplate="emptymessage">
+                <tr>
+                  <td colspan="4" class="text-center text-color-secondary p-3">Sin dispositivos.</td>
+                </tr>
+              </ng-template>
+            </p-table>
+          </p-card>
+        }
+      }
+      <p-card class="border-round-2xl shadow-1 border-1 border-primary">
+        <div class="flex gap-3 align-items-start">
+          <i class="pi pi-shield text-primary text-xl mt-1"></i>
+          <div class="text-sm line-height-3 text-color-secondary">
+            Esta consulta ha sido registrada en blockchain. El titular puede
+            verificar qué datos se consultaron, cuándo y desde qué contrato.
+          </div>
+        </div>
+      </p-card>
+    }
+  </div>
+</div>

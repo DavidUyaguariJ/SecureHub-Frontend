@@ -204,18 +204,15 @@
           </div>
         </div>
       }
-
       @if (step() === 'data' && !loading()) {
         @if (subjectData(); as d) {
           <div class="flex flex-column gap-3">
             <div class="flex align-items-center gap-2">
               <i class="pi pi-check-circle text-green-500" style="font-size:1.4rem"></i>
               <span class="font-semibold text-900">Identidad verificada</span>
-              <p-tag value="Solo lectura" severity="info" styleClass="ml-auto" />
+              <p-tag value="Solo lectura" severity="info" styleClass="ml-auto"/>
             </div>
-
-            <p-divider />
-
+            <p-divider/>
             <div class="formgrid grid m-0">
               <div class="col-12 md:col-6 field">
                 <label class="font-medium text-color-secondary text-xs block mb-1">Identificación</label>
@@ -246,8 +243,48 @@
                 </div>
               }
             </div>
-
-            <p-divider />
+            @if (d.devices && d.devices.length > 0) {
+              <p-divider/>
+              <div>
+                <div class="flex align-items-center gap-2 mb-3">
+                  <i class="pi pi-desktop text-primary"></i>
+                  <span class="font-semibold text-900">Dispositivos registrados</span>
+                  <p-tag [value]="d.devices.length + ' dispositivo' + (d.devices.length > 1 ? 's' : '')"
+                         severity="info"/>
+                </div>
+                <div class="flex flex-column gap-2">
+                  @for (device of d.devices; track device.id) {
+                    <div class="surface-100 border-round-lg p-3">
+                      <div class="flex align-items-center gap-2 mb-2">
+                        <i class="pi pi-desktop text-color-secondary text-sm"></i>
+                        <span class="font-semibold text-sm text-color">{{ device.deviceType }}</span>
+                      </div>
+                      <div class="formgrid grid m-0">
+                        @if (device.brand) {
+                          <div class="col-6 md:col-3">
+                            <label class="text-color-secondary text-xs block">Marca</label>
+                            <span class="text-sm text-color">{{ device.brand }}</span>
+                          </div>
+                        }
+                        @if (device.model) {
+                          <div class="col-6 md:col-3">
+                            <label class="text-color-secondary text-xs block">Modelo</label>
+                            <span class="text-sm text-color">{{ device.model }}</span>
+                          </div>
+                        }
+                        @if (device.serialNumber) {
+                          <div class="col-12 md:col-6">
+                            <label class="text-color-secondary text-xs block">N° Serie</label>
+                            <span class="text-sm font-mono text-color">{{ device.serialNumber }}</span>
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+            <p-divider/>
 
             <div class="surface-100 border-round p-3 text-sm">
               <i class="pi pi-info-circle mr-2 text-primary"></i>
@@ -257,7 +294,6 @@
           </div>
         }
       }
-
     </div>
   </p-card>
 </div>
