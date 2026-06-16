@@ -35,39 +35,35 @@ export class App implements OnInit {
   }
 
   ngOnInit(): void {
+    const isAdmin: boolean = this.auth.hasAnyRole(['admin_role']);
+    const isTechnician: boolean = this.auth.hasAnyRole(['admin_role', 'technician_role']);
+    const isApplicant: boolean = this.auth.hasAnyRole(['admin_role', 'applicant_role']);
+    const isExternal: boolean = this.auth.hasAnyRole(['admin_role', 'external_role']);
+
+    const arcoItems: MenuItem[] = [
+      ...(isTechnician ? [{
+        label: 'Gestionar Solicitudes ARCO',
+        icon: 'pi pi-cog',
+        routerLink: '/arco-manage'
+      }] : []),
+      ...(isApplicant ? [{
+        label: 'Generar Solicitud ARCO',
+        icon: 'pi pi-plus',
+        routerLink: '/arco-request'
+      }] : [])
+    ];
+
     this.items = [
       {
         label: 'Home',
         icon: 'pi pi-home',
         routerLink: '/'
-      },
-      ...(this.auth.hasAnyRole(['admin_role', 'technician_role']) ? [{
-        label: 'Gestión de consentimientos',
-        icon: 'pi pi-book',
-        routerLink: '/manage-consent'
-      }] : []),
-      ...(this.auth.hasAnyRole(['admin_role', 'applicant_role']) ? [{
-        label: 'Registro Biométrico-Mis Datos',
-        icon: 'pi pi-face-smile',
-        routerLink: '/my-data'
-      }] : []),
-      {
-        label: 'Derechos ARCO',
-        icon: 'pi pi-list-check',
-        items: [
-          ...(this.auth.hasAnyRole(['admin_role', 'technician_role']) ? [{
-            label: 'Gestionar Solicitudes ARCO',
-            icon: 'pi pi-cog',
-            routerLink: '/arco-manage'
-          }] : []),
-
-          ...(this.auth.hasAnyRole(['admin_role', 'applicant_role']) ? [{
-            label: 'Generar Solicitud ARCO',
-            icon: 'pi pi-plus',
-            routerLink: '/arco-request'
-          }] : [])
-        ]
-      }
+      }, ...(isTechnician ? [{label: 'Gestión de Consentimientos', icon: 'pi pi-book', routerLink: '/manage-consent'
+      }] : []), ...(isApplicant ? [{label: 'Registro Biométrico — Mis Datos', icon: 'pi pi-face-smile', routerLink: '/my-data'
+      }] : []), ...(arcoItems.length > 0 ? [{label: 'Derechos ARCO', icon: 'pi pi-list-check', items: arcoItems
+      }] : []), ...(isAdmin ? [{label: 'Encargados', icon: 'pi pi-building', routerLink: '/part-contracts'
+      }] : []), ...(isExternal ? [{label: 'Portal Externo', icon: 'pi pi-lock-open', routerLink: '/external-portal'
+      }] : [])
     ];
   }
 

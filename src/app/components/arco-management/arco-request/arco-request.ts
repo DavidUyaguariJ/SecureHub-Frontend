@@ -18,6 +18,7 @@ import {CreateArcoRequestDto} from '../../../dtos/arco-management/create-arco-re
 import {CommonModule} from '@angular/common';
 import {ArcoStep, REQUEST_TYPE_ICONS, REQUEST_TYPE_LABELS} from '../../../enums/const-types';
 import {ArcoRequestResponseDto} from '../../../dtos/arco-management/arco-request-response-dto';
+import {UpdateDeviceDto} from '../../../dtos/arco-management/update-device-dto';
 
 
 @Component({
@@ -41,7 +42,7 @@ import {ArcoRequestResponseDto} from '../../../dtos/arco-management/arco-request
 export class ArcoRequest {
   private readonly arcoService = inject(ArcoService);
   readonly messageService = inject(MessageService);
-
+  deviceUpdates: WritableSignal<UpdateDeviceDto[]> = signal([]);
   step: WritableSignal<ArcoStep> = signal('lookup');
 
   stepIndex = computed((): number => {
@@ -95,6 +96,27 @@ export class ArcoRequest {
   readonly typeOptions = Object.keys(
     REQUEST_TYPE_LABELS
   ) as ArcoRequestType[];
+
+  addDeviceUpdate(): void {
+    const newDev: UpdateDeviceDto = { id: '', brand: '', model: '', serialNumber: '' };
+    this.deviceUpdates.update(list => [...list, newDev]);
+  }
+
+  removeDeviceUpdate(index: number): void {
+    this.deviceUpdates.update(list => list.filter((_, i) => i !== index));
+  }
+
+  setDeviceUpdateField(
+    index: number,
+    field: keyof UpdateDeviceDto,
+    value: string
+  ): void {
+    this.deviceUpdates.update(list => {
+      const updated = [...list];
+      updated[index] = { ...updated[index], [field]: value || undefined };
+      return updated;
+    });
+  }
 
   async onLookup(): Promise<void> {
     const id = this.identification().trim();
@@ -170,16 +192,17 @@ export class ArcoRequest {
     }));
   }
 
-  private buildCreateDto(
-    subject: SubjectLookupDto
-  ): CreateArcoRequestDto {
+  private buildCreateDto(subject: SubjectLookupDto): CreateArcoRequestDto {
     return {
-      subjectId: subject.id,
+      subjectId:   subject.id,
       requestType: this.selectedType(),
       description: this.description() || undefined,
       imageBase64: this.biometricBase64(),
       updatedData: this.showUpdateForm()
-        ? this.updateData()
+        ? {
+          ...this.updateData(),
+          devices: this.deviceUpdates().filter(d => d.id.trim())
+        }
         : undefined,
     };
   }
@@ -199,22 +222,6 @@ export class ArcoRequest {
     }
 
     return 'Error al enviar la solicitud.';
-  }
-
-  private handleError(
-    err: unknown,
-    fallback: string
-  ): void {
-    const e = err as {
-      error?: { message?: string };
-      status?: number;
-    };
-
-    this.messageService.add({
-      severity: 'error',
-      summary: 'Error',
-      detail: e?.error?.message ?? fallback,
-    });
   }
 
   async onSubmit(): Promise<void> {
@@ -280,5 +287,6 @@ export class ArcoRequest {
     this.description.set('');
     this.updateData.set({});
     this.createdId.set('');
+    this.deviceUpdates.set([]);
   }
 }

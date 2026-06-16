@@ -184,24 +184,20 @@
           @for (type of typeOptions; track type) {
             <div class="col-12 md:col-6 lg:col-4">
               <div class="border-round p-3 cursor-pointer transition-all transition-duration-200"
-                   [ngClass]="selectedType() === type
-                     ? 'border-2 surface-100'
-                     : 'border-1 surface-card'"
-                   [style.borderColor]="selectedType() === type
-                     ? 'var(--primary-color)'
-                     : 'var(--surface-300)'"
+                   [ngClass]="selectedType() === type ? 'border-2 surface-100' : 'border-1 surface-card'"
+                   [style.borderColor]="selectedType() === type ? 'var(--primary-color)' : 'var(--surface-300)'"
                    (click)="selectedType.set(type)">
                 <div class="flex align-items-center gap-2">
-                  <i [ngClass]="REQUEST_TYPE_ICONS[type] + ' text-primary'"
-                     style="font-size:1.2rem"></i>
+                  <i [ngClass]="REQUEST_TYPE_ICONS[type] + ' text-primary'" style="font-size:1.2rem"></i>
                   <span class="font-medium text-sm">{{ REQUEST_TYPE_LABELS[type] }}</span>
                 </div>
               </div>
             </div>
           }
         </div>
+
         @if (showCancelWarn()) {
-          <div class="border-round p-3 mb-4 flex gap-2">
+          <div class="border-round p-3 mb-4 flex gap-2 surface-100">
             <i class="pi pi-exclamation-triangle text-red-500 mt-1"></i>
             <div class="text-sm text-800">
               <strong>Atención:</strong> Al solicitar la cancelación, sus datos personales serán
@@ -210,6 +206,7 @@
             </div>
           </div>
         }
+
         @if (showUpdateForm()) {
           <div class="surface-100 border-round p-4 mb-4">
             <h4 class="text-900 font-semibold m-0 mb-3">
@@ -245,6 +242,68 @@
                        (input)="setUpdateField('address', $any($event.target).value)" />
               </div>
             </div>
+            <p-divider />
+            <div class="flex align-items-center justify-content-between mb-2">
+              <div class="flex align-items-center gap-2">
+                <i class="pi pi-desktop text-primary"></i>
+                <span class="font-semibold text-sm text-color">Dispositivos a rectificar</span>
+                <small class="text-color-secondary">(opcional)</small>
+              </div>
+              <p-button label="Agregar dispositivo" icon="pi pi-plus"
+                        severity="contrast" [outlined]="true" size="small"
+                        (onClick)="addDeviceUpdate()" />
+            </div>
+            <p class="text-color-secondary text-xs mb-3">
+              Indica solo los dispositivos que necesiten corrección. Deja vacíos los campos que estén correctos.
+            </p>
+
+            @for (dev of deviceUpdates(); track dev.id; let i = $index) {
+              <div class="surface-card border-1 surface-border border-round-lg p-3 mb-3">
+                <div class="flex align-items-center justify-content-between mb-2">
+            <span class="text-xs font-semibold text-color-secondary">
+              <i class="pi pi-desktop mr-1"></i>Dispositivo {{ i + 1 }}
+            </span>
+                  <p-button icon="pi pi-trash" severity="danger" [text]="true" size="small"
+                            (onClick)="removeDeviceUpdate(i)" />
+                </div>
+                <div class="formgrid grid m-0">
+                  <div class="field col-12">
+                    <label class="text-xs text-color-secondary block mb-1">ID del dispositivo *</label>
+                    <input pInputText class="w-full text-sm font-mono"
+                           [value]="dev.id"
+                           (input)="setDeviceUpdateField(i, 'id', $any($event.target).value)"
+                           placeholder="UUID del dispositivo (lo puedes ver en Mi Portal)" />
+                  </div>
+                  <div class="field col-12 md:col-4">
+                    <label class="text-xs text-color-secondary block mb-1">Marca</label>
+                    <input pInputText class="w-full text-sm"
+                           [value]="dev.brand ?? ''"
+                           (input)="setDeviceUpdateField(i, 'brand', $any($event.target).value)"
+                           placeholder="Marca correcta" />
+                  </div>
+                  <div class="field col-12 md:col-4">
+                    <label class="text-xs text-color-secondary block mb-1">Modelo</label>
+                    <input pInputText class="w-full text-sm"
+                           [value]="dev.model ?? ''"
+                           (input)="setDeviceUpdateField(i, 'model', $any($event.target).value)"
+                           placeholder="Modelo correcto" />
+                  </div>
+                  <div class="field col-12 md:col-4">
+                    <label class="text-xs text-color-secondary block mb-1">N° Serie</label>
+                    <input pInputText class="w-full text-sm"
+                           [value]="dev.serialNumber ?? ''"
+                           (input)="setDeviceUpdateField(i, 'serialNumber', $any($event.target).value)"
+                           placeholder="Serie correcta" />
+                  </div>
+                </div>
+              </div>
+            }
+
+            @if (deviceUpdates().length === 0) {
+              <div class="text-center py-2">
+                <small class="text-color-secondary">No hay dispositivos agregados. Haz clic en "Agregar dispositivo" si necesitas rectificar alguno.</small>
+              </div>
+            }
           </div>
         }
 
@@ -254,7 +313,7 @@
                     placeholder="Describa brevemente su solicitud..."
                     [value]="description()"
                     (input)="description.set($any($event.target).value)">
-          </textarea>
+    </textarea>
         </div>
         <div class="flex justify-content-between">
           <p-button label="Volver" icon="pi pi-arrow-left"

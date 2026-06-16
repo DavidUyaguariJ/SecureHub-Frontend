@@ -1,0 +1,196 @@
+<p-toast/>
+
+<div class="flex justify-content-center p-4">
+  <div class="w-full xl:w-11">
+
+    <p-toolbar class="mb-4 border-round-2xl shadow-1">
+      <ng-template pTemplate="start">
+        <div class="flex flex-column">
+          <span class="text-2xl font-bold">Gestión de Encargados</span>
+          <span class="text-color-secondary text-sm mt-1">
+            Contratos de acceso a datos de terceros (LOPDP)
+          </span>
+        </div>
+      </ng-template>
+      <ng-template pTemplate="end">
+        <p-button
+          label="Nuevo contrato"
+          icon="pi pi-plus"
+          severity="contrast"
+          routerLink="/part-contracts/new"/>
+      </ng-template>
+    </p-toolbar>
+    <p-card class="mb-4 shadow-1 border-round-2xl">
+      <div class="flex flex-column md:flex-row gap-3 md:align-items-end">
+        <div class="flex flex-column gap-2 w-full md:w-20rem">
+          <label class="font-medium text-sm">Estado del contrato</label>
+          <p-select
+            [options]="statusOptions"
+            [ngModel]="statusFilter()"
+            (ngModelChange)="statusFilter.set($event); load()"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Filtrar estado"
+            class="w-full"/>
+        </div>
+        <p-button
+          label="Actualizar"
+          icon="pi pi-refresh"
+          severity="secondary"
+          [loading]="loading()"
+          (onClick)="load()"/>
+      </div>
+    </p-card>
+    @if (loading()) {
+      <p-card class="shadow-1 border-round-2xl">
+        <div class="flex flex-column align-items-center justify-content-center py-8 gap-3">
+          <p-progressSpinner strokeWidth="4" class="w-4rem h-4rem"/>
+          <span class="text-color-secondary">Cargando contratos...</span>
+        </div>
+      </p-card>
+    }
+    @if (!loading() && contracts().length === 0) {
+      <p-card class="shadow-1 border-round-2xl">
+        <div class="flex flex-column align-items-center justify-content-center py-8 gap-3">
+          <i class="pi pi-folder-open text-4xl text-color-secondary"></i>
+          <span class="text-color-secondary">No hay contratos registrados.</span>
+          <p-button
+            label="Crear primer contrato"
+            icon="pi pi-plus"
+            severity="contrast"
+            routerLink="/part-contracts/new"/>
+        </div>
+      </p-card>
+    }
+    @if (!loading() && contracts().length > 0) {
+      <p-card class="shadow-1 border-round-2xl overflow-hidden p-0">
+        <p-table
+          [value]="contracts()"
+          responsiveLayout="scroll"
+          class="p-datatable-sm"
+          [paginator]="true"
+          [rows]="10"
+          [rowsPerPageOptions]="[10, 25, 50]">
+          <ng-template pTemplate="header">
+            <tr>
+              <th>Empresa</th>
+              <th>Contacto</th>
+              <th>Campos autorizados</th>
+              <th>Vigencia</th>
+              <th>Estado</th>
+              <th>Blockchain</th>
+              <th style="width: 100px">Acciones</th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-c>
+            <tr>
+              <td>
+                <div class="flex flex-column gap-1">
+                  <span class="font-semibold">{{ c.companyName }}</span>
+                  <small class="text-color-secondary">{{ c.keycloakUsername ?? '—' }}</small>
+                </div>
+              </td>
+              <td>
+                <span class="text-sm">{{ c.contactEmail }}</span>
+              </td>
+              <td>
+                <span class="text-sm" [title]="fieldsLabel(c.allowedFields)">
+                  {{ fieldsLabel(c.allowedFields) | slice:0:50 }}{{ fieldsLabel(c.allowedFields).length > 50 ? '...' : '' }}
+                </span>
+              </td>
+              <td>
+                <div class="flex flex-column gap-1">
+                  <small class="text-color-secondary">Desde</small>
+                  <span class="text-sm">{{ c.validFrom | date:'dd/MM/yyyy' }}</span>
+                  <small class="text-color-secondary mt-1">Hasta</small>
+                  <span class="text-sm font-medium">{{ c.validUntil | date:'dd/MM/yyyy' }}</span>
+                </div>
+              </td>
+              <td>
+                <p-tag [value]="c.status" [severity]="statusSeverity(c.status)"/>
+              </td>
+              <td>
+                @if (c.blockchainTxHash) {
+                  <p-tag value="Registrado" severity="success" icon="pi pi-check"/>
+                } @else {
+                  <p-tag value="Pendiente" severity="secondary"/>
+                }
+              </td>
+              <td>
+                <div class="flex gap-1">
+                  <p-button
+                    icon="pi pi-eye"
+                    [text]="true"
+                    severity="contrast"
+                    pTooltip="Ver detalle"
+                    [routerLink]="['/part-contracts', c.id]"/>
+                  <p-button
+                    icon="pi pi-download"
+                    [text]="true"
+                    severity="secondary"
+                    pTooltip="Descargar PDF"
+                    (onClick)="downloadPdf(c.id, c.companyName)"/>
+                  @if (c.status === 'REVOCADO' || c.status === 'VENCIDO') {
+                    <p-button
+                      icon="pi pi-refresh"
+                      pTooltip="Rehacer contrato"
+                      severity="warn"
+                      [text]="true"
+                      size="small"
+                      (onClick)="openRenew(c)"/>
+                  }
+                </div>
+              </td>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="emptymessage">
+            <tr>
+              <td colspan="7" class="text-center text-color-secondary p-4">
+                No hay contratos con el filtro seleccionado.
+              </td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </p-card>
+    }
+  </div>
+</div>
+<p-dialog
+  header="Rehacer contrato"
+  [(visible)]="renewMode"
+  [modal]="true"
+  [style]="{width: '400px'}">
+  <p class="text-color-secondary text-sm mb-4">
+    Se creará un nuevo contrato con los mismos datos. El usuario anterior en Keycloak será eliminado y se generará uno
+    nuevo.
+  </p>
+  <div class="flex flex-column gap-4">
+    <div class="flex flex-column gap-1">
+      <label class="font-medium text-sm">Válido desde</label>
+      <p-datepicker
+        [ngModel]="renewFrom()"
+        (ngModelChange)="renewFrom.set($event)"
+        dateFormat="dd/mm/yy"
+        [showIcon]="true"
+        class="w-full"/>
+    </div>
+    <div class="flex flex-column gap-1">
+      <label class="font-medium text-sm">Válido hasta</label>
+      <p-datepicker
+        [ngModel]="renewUntil()"
+        (ngModelChange)="renewUntil.set($event)"
+        dateFormat="dd/mm/yy"
+        [showIcon]="true"
+        class="w-full"/>
+    </div>
+  </div>
+  <ng-template pTemplate="footer">
+    <p-button label="Cancelar" severity="secondary" [outlined]="true" (onClick)="renewMode.set(false)"/>
+    <p-button
+      label="Crear nuevo contrato"
+      icon="pi pi-check"
+      severity="contrast"
+      [loading]="renewing()"
+      (onClick)="confirmRenew()"/>
+  </ng-template>
+</p-dialog>
