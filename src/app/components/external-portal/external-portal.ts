@@ -1,4 +1,4 @@
-import {Component, inject, OnInit, signal, WritableSignal} from '@angular/core';
+import {Component, inject, signal, WritableSignal} from '@angular/core';
 import {CommonModule} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {CardModule} from 'primeng/card';
@@ -27,7 +27,7 @@ type ExternalStep = 'search' | 'loading' | 'data' | 'error';
   providers: [MessageService],
   templateUrl: './external-portal.html'
 })
-export class ExternalPortal implements OnInit {
+export class ExternalPortal {
 
   private readonly svc = inject(PartContractService);
   readonly messageService = inject(MessageService);
@@ -41,13 +41,9 @@ export class ExternalPortal implements OnInit {
 
   searchHistory: WritableSignal<string[]> = signal([]);
 
-  ngOnInit() {
-  }
-
-  search() {
-    const id = this.searchId().trim();
-    if (!id) return;
-
+  search(): void {
+    const id: string = this.searchId().trim();
+    if (!id) {return;}
     this.loading.set(true);
     this.step.set('loading');
     this.subjectData.set(null);
@@ -59,7 +55,7 @@ export class ExternalPortal implements OnInit {
         this.step.set('data');
         this.loading.set(false);
         const h = this.searchHistory();
-        if (!h.includes(id)) this.searchHistory.set([id, ...h].slice(0, 5));
+        if (!h.includes(id)) {this.searchHistory.set([id, ...h].slice(0, 5));}
       },
       error: err => {
         const msg = err.status === 401 || err.status === 403
@@ -74,21 +70,21 @@ export class ExternalPortal implements OnInit {
     });
   }
 
-  reset() {
+  reset():void {
     this.step.set('search');
     this.searchId.set('');
     this.subjectData.set(null);
     this.errorMsg.set('');
   }
 
-  searchFromHistory(id: string) {
+  searchFromHistory(id: string):void {
     this.searchId.set(id);
     this.search();
   }
 
   getDataEntries(): { key: string; label: string; value: any }[] {
     const data = this.subjectData();
-    if (!data) return [];
+    if (!data) {return [];}
     return Object.entries(data)
       .filter(([, v]) => v !== null && v !== undefined)
       .map(([k, v]) => ({
@@ -103,7 +99,7 @@ export class ExternalPortal implements OnInit {
   }
 
   formatValue(value: any): string {
-    if (Array.isArray(value)) return '';
+    if (Array.isArray(value)){ return '';}
     return String(value ?? '—');
   }
 }

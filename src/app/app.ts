@@ -58,31 +58,11 @@ export class App implements OnInit {
         label: 'Home',
         icon: 'pi pi-home',
         routerLink: '/'
-      },
-      ...(isTechnician ? [{
-        label: 'Gestión de Consentimientos',
-        icon: 'pi pi-book',
-        routerLink: '/manage-consent'
-      }] : []),
-      ...(isApplicant ? [{
-        label: 'Registro Biométrico — Mis Datos',
-        icon: 'pi pi-face-smile',
-        routerLink: '/my-data'
-      }] : []),
-      ...(arcoItems.length > 0 ? [{
-        label: 'Derechos ARCO',
-        icon: 'pi pi-list-check',
-        items: arcoItems
-      }] : []),
-      ...(isAdmin ? [{
-        label: 'Encargados',
-        icon: 'pi pi-building',
-        routerLink: '/part-contracts'
-      }] : []),
-      ...(isExternal ? [{
-        label: 'Portal Externo',
-        icon: 'pi pi-lock-open',
-        routerLink: '/external-portal'
+      }, ...(isTechnician ? [{label: 'Gestión de Consentimientos', icon: 'pi pi-book', routerLink: '/manage-consent'
+      }] : []), ...(isApplicant ? [{label: 'Registro Biométrico — Mis Datos', icon: 'pi pi-face-smile', routerLink: '/my-data'
+      }] : []), ...(arcoItems.length > 0 ? [{label: 'Derechos ARCO', icon: 'pi pi-list-check', items: arcoItems
+      }] : []), ...(isAdmin ? [{label: 'Encargados', icon: 'pi pi-building', routerLink: '/part-contracts'
+      }] : []), ...(isExternal ? [{label: 'Portal Externo', icon: 'pi pi-lock-open', routerLink: '/external-portal'
       }] : [])
     ];
   }

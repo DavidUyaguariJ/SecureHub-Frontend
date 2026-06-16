@@ -1,9 +1,9 @@
-<p-toast />
+<p-toast/>
 
 <div class="flex justify-content-center p-4">
   <div class="w-full xl:w-11">
 
-    <p-toolbar styleClass="mb-4 border-round-2xl shadow-1">
+    <p-toolbar class="mb-4 border-round-2xl shadow-1">
       <ng-template pTemplate="start">
         <div class="flex flex-column">
           <span class="text-2xl font-bold">Gestión de Encargados</span>
@@ -17,12 +17,10 @@
           label="Nuevo contrato"
           icon="pi pi-plus"
           severity="contrast"
-          routerLink="/part-contracts/new" />
+          routerLink="/part-contracts/new"/>
       </ng-template>
     </p-toolbar>
-
-    <!-- Filtros -->
-    <p-card styleClass="mb-4 shadow-1 border-round-2xl">
+    <p-card class="mb-4 shadow-1 border-round-2xl">
       <div class="flex flex-column md:flex-row gap-3 md:align-items-end">
         <div class="flex flex-column gap-2 w-full md:w-20rem">
           <label class="font-medium text-sm">Estado del contrato</label>
@@ -33,30 +31,26 @@
             optionLabel="label"
             optionValue="value"
             placeholder="Filtrar estado"
-            styleClass="w-full" />
+            class="w-full"/>
         </div>
         <p-button
           label="Actualizar"
           icon="pi pi-refresh"
           severity="secondary"
           [loading]="loading()"
-          (onClick)="load()" />
+          (onClick)="load()"/>
       </div>
     </p-card>
-
-    <!-- Loading -->
     @if (loading()) {
-      <p-card styleClass="shadow-1 border-round-2xl">
+      <p-card class="shadow-1 border-round-2xl">
         <div class="flex flex-column align-items-center justify-content-center py-8 gap-3">
-          <p-progressSpinner strokeWidth="4" styleClass="w-4rem h-4rem" />
+          <p-progressSpinner strokeWidth="4" class="w-4rem h-4rem"/>
           <span class="text-color-secondary">Cargando contratos...</span>
         </div>
       </p-card>
     }
-
-    <!-- Vacío -->
     @if (!loading() && contracts().length === 0) {
-      <p-card styleClass="shadow-1 border-round-2xl">
+      <p-card class="shadow-1 border-round-2xl">
         <div class="flex flex-column align-items-center justify-content-center py-8 gap-3">
           <i class="pi pi-folder-open text-4xl text-color-secondary"></i>
           <span class="text-color-secondary">No hay contratos registrados.</span>
@@ -64,18 +58,16 @@
             label="Crear primer contrato"
             icon="pi pi-plus"
             severity="contrast"
-            routerLink="/part-contracts/new" />
+            routerLink="/part-contracts/new"/>
         </div>
       </p-card>
     }
-
-    <!-- Tabla -->
     @if (!loading() && contracts().length > 0) {
-      <p-card styleClass="shadow-1 border-round-2xl overflow-hidden p-0">
+      <p-card class="shadow-1 border-round-2xl overflow-hidden p-0">
         <p-table
           [value]="contracts()"
           responsiveLayout="scroll"
-          styleClass="p-datatable-sm"
+          class="p-datatable-sm"
           [paginator]="true"
           [rows]="10"
           [rowsPerPageOptions]="[10, 25, 50]">
@@ -115,13 +107,13 @@
                 </div>
               </td>
               <td>
-                <p-tag [value]="c.status" [severity]="statusSeverity(c.status)" />
+                <p-tag [value]="c.status" [severity]="statusSeverity(c.status)"/>
               </td>
               <td>
                 @if (c.blockchainTxHash) {
-                  <p-tag value="Registrado" severity="success" icon="pi pi-check" />
+                  <p-tag value="Registrado" severity="success" icon="pi pi-check"/>
                 } @else {
-                  <p-tag value="Pendiente" severity="secondary" />
+                  <p-tag value="Pendiente" severity="secondary"/>
                 }
               </td>
               <td>
@@ -131,13 +123,22 @@
                     [text]="true"
                     severity="contrast"
                     pTooltip="Ver detalle"
-                    [routerLink]="['/part-contracts', c.id]" />
+                    [routerLink]="['/part-contracts', c.id]"/>
                   <p-button
                     icon="pi pi-download"
                     [text]="true"
                     severity="secondary"
                     pTooltip="Descargar PDF"
-                    (onClick)="downloadPdf(c.id, c.companyName)" />
+                    (onClick)="downloadPdf(c.id, c.companyName)"/>
+                  @if (c.status === 'REVOCADO' || c.status === 'VENCIDO') {
+                    <p-button
+                      icon="pi pi-refresh"
+                      pTooltip="Rehacer contrato"
+                      severity="warn"
+                      [text]="true"
+                      size="small"
+                      (onClick)="openRenew(c)"/>
+                  }
                 </div>
               </td>
             </tr>
@@ -154,3 +155,42 @@
     }
   </div>
 </div>
+<p-dialog
+  header="Rehacer contrato"
+  [(visible)]="renewMode"
+  [modal]="true"
+  [style]="{width: '400px'}">
+  <p class="text-color-secondary text-sm mb-4">
+    Se creará un nuevo contrato con los mismos datos. El usuario anterior en Keycloak será eliminado y se generará uno
+    nuevo.
+  </p>
+  <div class="flex flex-column gap-4">
+    <div class="flex flex-column gap-1">
+      <label class="font-medium text-sm">Válido desde</label>
+      <p-datepicker
+        [ngModel]="renewFrom()"
+        (ngModelChange)="renewFrom.set($event)"
+        dateFormat="dd/mm/yy"
+        [showIcon]="true"
+        class="w-full"/>
+    </div>
+    <div class="flex flex-column gap-1">
+      <label class="font-medium text-sm">Válido hasta</label>
+      <p-datepicker
+        [ngModel]="renewUntil()"
+        (ngModelChange)="renewUntil.set($event)"
+        dateFormat="dd/mm/yy"
+        [showIcon]="true"
+        class="w-full"/>
+    </div>
+  </div>
+  <ng-template pTemplate="footer">
+    <p-button label="Cancelar" severity="secondary" [outlined]="true" (onClick)="renewMode.set(false)"/>
+    <p-button
+      label="Crear nuevo contrato"
+      icon="pi pi-check"
+      severity="contrast"
+      [loading]="renewing()"
+      (onClick)="confirmRenew()"/>
+  </ng-template>
+</p-dialog>

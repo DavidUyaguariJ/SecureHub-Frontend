@@ -43,12 +43,11 @@ export class PartContractDetail implements OnInit {
     return this.route.snapshot.paramMap.get('id')!;
   }
 
-  ngOnInit() {
+  ngOnInit():void {
     this.loading = true;
     this.svc.getById(this.id).subscribe({
       next: contract => {
         this.contract = contract;
-        console.log('contract.status:', JSON.stringify(contract.status));
         this.loading  = false;
         this.cdr.detectChanges();
         this.svc.getBlockchainStatus(this.id).pipe(
@@ -67,8 +66,8 @@ export class PartContractDetail implements OnInit {
     });
   }
 
-  revoke() {
-    if (!this.contract || !this.revokeReason.trim()) return;
+  revoke():void {
+    if (!this.contract || !this.revokeReason.trim()) {return;}
     this.revoking = true;
     this.svc.revoke(this.contract.id, { reason: this.revokeReason }).subscribe({
       next: updated => {
@@ -84,8 +83,8 @@ export class PartContractDetail implements OnInit {
     });
   }
 
-  downloadPdf() {
-    if (!this.contract) return;
+  downloadPdf():void {
+    if (!this.contract) {return;}
     this.svc.downloadPdf(this.contract.id).subscribe(blob => {
       const url = URL.createObjectURL(blob);
       const a   = document.createElement('a');

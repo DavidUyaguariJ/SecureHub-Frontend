@@ -1,4 +1,4 @@
-import {Component, computed, inject, OnInit, signal} from '@angular/core';
+import {Component, computed, inject, OnInit, Signal, signal, WritableSignal} from '@angular/core';
 import {FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators} from '@angular/forms';
 import {Router, RouterModule} from '@angular/router';
 import {MessageService} from 'primeng/api';
@@ -31,39 +31,39 @@ import {SubjectLookupDto} from '../../../dtos/arco-management/subject-lookup-dto
 export class PartContractForm implements OnInit {
 
   form!: FormGroup;
-  saving        = signal(false);
-  error         = signal('');
-  fieldLabels   = FIELD_LABELS;
-  availableFields = Object.keys(FIELD_LABELS);
-  selectedFields = signal<string[]>([]);
-  hasNoFields    = computed(() => this.selectedFields().length === 0);
+  saving: WritableSignal<boolean> = signal(false);
+  error: WritableSignal<string> = signal('');
+  fieldLabels: Record<string, string> = FIELD_LABELS;
+  availableFields: string[] = Object.keys(FIELD_LABELS);
+  selectedFields: WritableSignal<string[]> = signal<string[]>([]);
+  hasNoFields: Signal<boolean> = computed(() => this.selectedFields().length === 0);
 
-  searchId     = signal('');
-  searching    = signal(false);
-  searchError  = signal('');
-  foundSubject = signal<SubjectLookupDto | null>(null);
+  searchId: WritableSignal<string> = signal('');
+  searching: WritableSignal<boolean> = signal(false);
+  searchError: WritableSignal<string> = signal('');
+  foundSubject: WritableSignal<SubjectLookupDto | null> = signal<SubjectLookupDto | null>(null);
 
-  fb             = inject(FormBuilder);
-  svc            = inject(PartContractService);
-  router         = inject(Router);
-  messageService = inject(MessageService);
+  fb:FormBuilder = inject(FormBuilder);
+  svc:PartContractService = inject(PartContractService);
+  router:Router = inject(Router);
+  messageService:MessageService = inject(MessageService);
 
   ngOnInit() {
-    const today   = new Date();
-    const oneYear = new Date(Date.now() + 365 * 86400000);
+    const today = new Date();
+    const oneYear = new Date(Date.now() + 15 * 86400000);
     this.form = this.fb.group({
-      companyName:        ['', [Validators.required, Validators.minLength(3)]],
-      contactEmail:       ['', [Validators.required, Validators.email]],
-      contactPerson:      [''],
+      companyName: ['', [Validators.required, Validators.minLength(3)]],
+      contactEmail: ['', [Validators.required, Validators.email]],
+      contactPerson: [''],
       purposeDescription: ['', [Validators.required, Validators.minLength(10)]],
-      validFrom:          [today, Validators.required],
-      validUntil:         [oneYear, Validators.required]
+      validFrom: [today, Validators.required],
+      validUntil: [oneYear, Validators.required]
     });
   }
 
   lookupSubject() {
     const id = this.searchId().trim();
-    if (!id) return;
+    if (!id) {return;}
     this.searching.set(true);
     this.searchError.set('');
     this.foundSubject.set(null);
@@ -109,14 +109,14 @@ export class PartContractForm implements OnInit {
     this.error.set('');
     const v = this.form.value;
     this.svc.create({
-      subjectId:          this.foundSubject()!.id,
-      companyName:        v.companyName,
-      contactEmail:       v.contactEmail,
-      contactPerson:      v.contactPerson || null,
+      subjectId: this.foundSubject()!.id,
+      companyName: v.companyName,
+      contactEmail: v.contactEmail,
+      contactPerson: v.contactPerson || null,
       purposeDescription: v.purposeDescription,
-      allowedFields:      this.selectedFields(),
-      validFrom:          (v.validFrom as Date).toISOString(),
-      validUntil:         (v.validUntil as Date).toISOString()
+      allowedFields: this.selectedFields(),
+      validFrom: (v.validFrom as Date).toISOString(),
+      validUntil: (v.validUntil as Date).toISOString()
     }).subscribe({
       next: c => {
         this.messageService.add({

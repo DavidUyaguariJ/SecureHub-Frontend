@@ -17,7 +17,7 @@ export class PartContractService {
 
   getAll(status?: string): Observable<PartContractDto[]> {
     let params = new HttpParams();
-    if (status) params = params.set('status', status);
+    if (status) {params = params.set('status', status);}
     return this.http.get<PartContractDto[]>(this.base, {params});
   }
 
@@ -56,5 +56,8 @@ export class PartContractService {
       `${this.base}/subject-lookup`,
       { params: { identification } }
     );
+  }
+  renew(id: string, cmd: { validFrom: string; validUntil: string }): Observable<PartContractDto> {
+    return this.http.post<PartContractDto>(`${this.base}/${id}/renew`, cmd);
   }
 }

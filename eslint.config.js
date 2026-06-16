@@ -45,10 +45,10 @@ module.exports = [
       'no-shadow': 'error',
 
       '@typescript-eslint/consistent-type-imports': 'off',
-      '@typescript-eslint/explicit-function-return-type': 'warn',
-      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-inferrable-types': 'warn',
-      '@typescript-eslint/no-non-null-assertion': 'warn',
+      '@typescript-eslint/no-non-null-assertion': 'off',
 
       'max-lines': ['warn', 300],
       'max-lines-per-function': ['warn', 50],
