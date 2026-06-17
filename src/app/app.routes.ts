@@ -10,27 +10,45 @@ export const routes: Routes = [
   },
   {
     path: 'manage-consent',
-    loadComponent: () => import('./components/manage-consent/manage-consent').then(m => m.ManageConsent),
+    loadComponent: () =>
+      import('./components/manage-consent/manage-consent').then(m => m.ManageConsent),
     canActivate: [AuthGuard],
     data: { roles: ['admin_role', 'technician_role'] }
   },
   {
     path: 'arco-manage',
-    loadComponent: () => import('./components/arco-management/arco-manage/arco-manage').then(m => m.ArcoManage),
+    loadComponent: () =>
+      import('./components/arco-management/arco-manage/arco-manage').then(m => m.ArcoManage),
     canActivate: [AuthGuard],
     data: { roles: ['admin_role', 'technician_role'] }
   },
   {
     path: 'arco-request',
-    loadComponent: () => import('./components/arco-management/arco-request/arco-request').then(m => m.ArcoRequest),
+    loadComponent: () =>
+      import('./components/arco-management/arco-request/arco-request').then(m => m.ArcoRequest),
     canActivate: [AuthGuard],
     data: { roles: ['admin_role', 'applicant_role'] }
   },
   {
     path: 'my-data',
-    loadComponent: () => import('./components/subject-portal/subject-portal').then(m => m.SubjectPortal),
+    loadComponent: () =>
+      import('./components/subject-portal/subject-portal').then(m => m.SubjectPortal),
     canActivate: [AuthGuard],
     data: { roles: ['applicant_role', 'admin_role'] }
+  },
+  {
+    path: 'dashboard',
+    loadComponent: () =>
+      import('./components/dashboard-management/dashboard').then(m => m.Dashboard),
+    canActivate: [AuthGuard],
+    data: { roles: ['admin_role', 'technician_role'] }
+  },
+  {
+    path: 'audit-log',
+    loadComponent: () =>
+      import('./components/dashboard-management/audit-log').then(m => m.AuditLog),
+    canActivate: [AuthGuard],
+    data: { roles: ['admin_role', 'technician_role'] }
   },
   {
     path: 'part-contracts',
