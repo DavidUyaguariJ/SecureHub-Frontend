@@ -4,7 +4,7 @@ securehubPipeline(
     service:       'frontend',
     imageName:     'securehub-frontend',
     devEnv:        'development',
-    stageEnv:      'staging',
+    stageEnv:      'pre',
     prodEnv:       'production',
     repoUrl:       'github.com/DavidUyaguariJ/SecureHub-Frontend.git',
     getVersionCmd: {
