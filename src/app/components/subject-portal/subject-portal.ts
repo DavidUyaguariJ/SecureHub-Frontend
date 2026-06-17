@@ -4,7 +4,7 @@ import {FormsModule} from '@angular/forms';
 import {WebcamImage, WebcamModule} from 'ngx-webcam';
 import {firstValueFrom, Observable, Subject} from 'rxjs';
 import {ActivatedRoute} from '@angular/router';
-import * as faceapi from 'face-api.js';
+import type * as FaceApiTypes from 'face-api.js';
 import {MessageService} from 'primeng/api';
 import {CardModule} from 'primeng/card';
 import {ButtonModule} from 'primeng/button';
@@ -36,29 +36,35 @@ type PortalStep = 'lookup' | 'loading' | 'first-time' | 'register-biometric' | '
 })
 export class SubjectPortal implements OnInit {
 
-  private readonly service     = inject(SubjectPortalService);
+  private readonly service = inject(SubjectPortalService);
   private readonly arcoService = inject(ArcoService);
   private readonly authService = inject(AuthService);
-  private readonly route       = inject(ActivatedRoute);
-  readonly messageService      = inject(MessageService);
+  private readonly route = inject(ActivatedRoute);
+  readonly messageService = inject(MessageService);
 
-  step: WritableSignal<PortalStep>                    = signal('loading');
-  subjectId: WritableSignal<string>                   = signal('');
-  identification: WritableSignal<string>              = signal('');
+  step: WritableSignal<PortalStep> = signal('loading');
+  subjectId: WritableSignal<string> = signal('');
+  identification: WritableSignal<string> = signal('');
   subjectLookup: WritableSignal<SubjectLookupDto | null> = signal(null);
-  subjectData: WritableSignal<SubjectPortalDto | null>   = signal(null);
-  loading: WritableSignal<boolean>                    = signal(false);
+  subjectData: WritableSignal<SubjectPortalDto | null> = signal(null);
+  loading: WritableSignal<boolean> = signal(false);
   faceDetectionReady = signal(false);
-  faceCount          = signal(0);
-  faceStatusMsg      = signal('Iniciando detección...');
+  faceCount = signal(0);
+  faceStatusMsg = signal('Iniciando detección...');
   private videoEl?: HTMLVideoElement;
   private detectionInterval?: ReturnType<typeof setInterval>;
 
-  private webcamTrigger                               = new Subject<void>();
-  get triggerObservable(): Observable<void>           { return this.webcamTrigger.asObservable(); }
-  cameraActive: WritableSignal<boolean>               = signal(false);
-  imagePreview: WritableSignal<string | null>         = signal(null);
-  imageBase64: WritableSignal<string>                 = signal('');
+  private faceapi?: typeof FaceApiTypes;
+
+  private webcamTrigger = new Subject<void>();
+
+  get triggerObservable(): Observable<void> {
+    return this.webcamTrigger.asObservable();
+  }
+
+  cameraActive: WritableSignal<boolean> = signal(false);
+  imagePreview: WritableSignal<string | null> = signal(null);
+  imageBase64: WritableSignal<string> = signal('');
 
   readonly consentText = 'Autorizo el tratamiento de mis datos biométricos faciales ' +
     'conforme a la Ley Orgánica de Protección de Datos Personales del Ecuador (LOPDP).';
@@ -74,7 +80,6 @@ export class SubjectPortal implements OnInit {
       this.subjectId.set(paramId);
       await this.loadSubjectAndDecide(paramId);
     } else if (this.isAdmin()) {
-      // Admin sin subjectId → mostrar buscador
       this.step.set('lookup');
     } else {
       this.step.set('lookup');
@@ -130,11 +135,19 @@ export class SubjectPortal implements OnInit {
     }
   }
 
+  private async loadFaceApi(): Promise<typeof FaceApiTypes> {
+    if (!this.faceapi) {
+      this.faceapi = await import('face-api.js');
+    }
+    if (!this.faceapi.nets.tinyFaceDetector.isLoaded) {
+      await this.faceapi.nets.tinyFaceDetector.loadFromUri('/models');
+    }
+    return this.faceapi;
+  }
+
   async startCamera(): Promise<void> {
     this.cameraActive.set(true);
-    if (!faceapi.nets.tinyFaceDetector.isLoaded) {
-      await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
-    }
+    await this.loadFaceApi();
     this.faceDetectionReady.set(true);
     setTimeout(() => this.startFaceDetection(), 1000);
   }
@@ -145,9 +158,7 @@ export class SubjectPortal implements OnInit {
     this.cameraActive.set(true);
 
     try {
-      if (!faceapi.nets.tinyFaceDetector.isLoaded) {
-        await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
-      }
+      await this.loadFaceApi();
 
       this.faceCount.set(0);
       this.faceStatusMsg.set('Buscando rostro...');
@@ -162,7 +173,6 @@ export class SubjectPortal implements OnInit {
       });
     }
   }
-
   private startFaceDetection(): void {
     const waitVideo = setInterval(() => {
       this.videoEl = document.querySelector('webcam video') as HTMLVideoElement;
@@ -174,29 +184,20 @@ export class SubjectPortal implements OnInit {
         clearInterval(this.detectionInterval);
       }
       this.detectionInterval = setInterval(async () => {
-        if (!this.videoEl) {
+        if (!this.videoEl || !this.faceapi) {
           return;
         }
         try {
-          const detections = await faceapi.detectAllFaces(
-            this.videoEl,
-            new faceapi.TinyFaceDetectorOptions()
+          const detections = await this.faceapi.detectAllFaces(
+            this.videoEl, new this.faceapi.TinyFaceDetectorOptions()
           );
           this.faceCount.set(detections.length);
           if (detections.length === 0) {
-            this.faceStatusMsg.set(
-              'No se detecta ningún rostro'
-            );
-          }
-          else if (detections.length === 1) {
-            this.faceStatusMsg.set(
-              'Rostro detectado — puede capturar'
-            );
-          }
-          else {
-            this.faceStatusMsg.set(
-              `Se detectan ${detections.length} rostros — solo debe aparecer uno`
-            );
+            this.faceStatusMsg.set('No se detecta ningún rostro');
+          } else if (detections.length === 1) {
+            this.faceStatusMsg.set('Rostro detectado — puede capturar');
+          } else {
+            this.faceStatusMsg.set(`Se detectan ${detections.length} rostros — solo debe aparecer uno`);
           }
         } catch (e) {
           console.error(e);
@@ -204,33 +205,23 @@ export class SubjectPortal implements OnInit {
       }, 500);
     }, 300);
   }
-
   stopFaceDetection(): void {
     if (this.detectionInterval) {
       clearInterval(this.detectionInterval);
       this.detectionInterval = undefined;
     }
   }
-
   takeSnapshot(): void {
-
     if (this.faceCount() === 0) {
-      this.messageService.add({
-        severity: 'warn',
-        summary: 'Sin rostro',
-        detail: 'Debe aparecer un rostro en la cámara.'
+      this.messageService.add({severity: 'warn', summary: 'Sin rostro', detail: 'Debe aparecer un rostro en la cámara.'
       });
       return;
     }
     if (this.faceCount() > 1) {
-      this.messageService.add({
-        severity: 'error',
-        summary: 'Demasiados rostros',
-        detail: 'Solo debe aparecer una persona en la captura.'
+      this.messageService.add({severity: 'error', summary: 'Demasiados rostros', detail: 'Solo debe aparecer una persona en la captura.'
       });
       return;
     }
-
     this.stopFaceDetection();
     this.webcamTrigger.next();
   }
@@ -249,7 +240,9 @@ export class SubjectPortal implements OnInit {
   }
 
   async registerBiometric(): Promise<void> {
-    if (!this.imageBase64()) { return; }
+    if (!this.imageBase64()) {
+      return;
+    }
     this.loading.set(true);
     try {
       await firstValueFrom(this.service.registerBiometric(this.subjectId(), {
@@ -261,39 +254,45 @@ export class SubjectPortal implements OnInit {
       this.subjectData.set(data);
       this.step.set('data');
     } catch (err: unknown) {
-      const e = err as {error?: {message?: string}};
-      this.messageService.add({severity: 'error', summary: 'Error', detail: e?.error?.message ?? 'No se pudo registrar la biometría.'});
+      const e = err as { error?: { message?: string } };
+      this.messageService.add({
+        severity: 'error',
+        summary: 'Error',
+        detail: e?.error?.message ?? 'No se pudo registrar la biometría.'
+      });
     } finally {
       this.loading.set(false);
     }
   }
 
   async verifyBiometric(): Promise<void> {
-    if (!this.imageBase64()) { return; }
+    if (!this.imageBase64()) {return;}
     this.loading.set(true);
     try {
       const result = await firstValueFrom(this.service.verifyBiometric(this.subjectId(), {imageBase64: this.imageBase64()}));
-      if (result.verified) {this.messageService.add({severity: 'success', summary: 'Verificado', detail: 'Identidad validada exitosamente.'});this.step.set('data');
+      if (result.verified) {
+        this.messageService.add({severity: 'success', summary: 'Verificado', detail: 'Identidad validada exitosamente.'
+        });this.step.set('data');
       }
     } catch {
-      this.messageService.add({severity: 'error', summary: 'Verificación fallida', detail: 'No se pudo validar la identidad. Intente nuevamente.'});
-    } finally {
-      this.loading.set(false);
-    }
+      this.messageService.add({severity: 'error', summary: 'Verificación fallida', detail: 'No se pudo validar la identidad. Intente nuevamente.'
+      });
+    } finally {this.loading.set(false);}
   }
-
   maskName(name: string): string {
     return name.split(' ').map(p => p.length <= 1 ? 'X' : p[0] + 'x'.repeat(p.length - 1)).join(' ');
   }
-
   maskEmail(email: string): string {
     const i = email.indexOf('@');
-    if (i <= 0) { return '***@***'; }
+    if (i <= 0) {
+      return '***@***';
+    }
     return email[0] + '*'.repeat(Math.max(i - 1, 1)) + email.slice(i);
   }
-
   maskPhone(phone: string | undefined): string {
-    if (!phone) { return '—'; }
+    if (!phone) {
+      return '—';
+    }
     return phone.length <= 4 ? '*'.repeat(phone.length) : '*'.repeat(phone.length - 4) + phone.slice(-4);
   }
 }
