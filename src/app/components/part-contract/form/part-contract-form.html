@@ -1,0 +1,138 @@
+<p-toast/>
+
+<div class="flex justify-content-center p-4">
+  <div class="w-full xl:w-8">
+    <div class="flex align-items-center gap-3 mb-4">
+      <p-button icon="pi pi-arrow-left" [text]="true" severity="secondary" routerLink="/part-contracts"/>
+      <div class="flex flex-column">
+        <span class="text-2xl font-bold">Nuevo Contrato de Encargado</span>
+        <span class="text-color-secondary text-sm">Registro de acceso autorizado a datos personales</span>
+      </div>
+    </div>
+
+    @if (error()) {
+      <p-message severity="error" [text]="error()" styleClass="w-full mb-4"/>
+    }
+
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <p-card class="mb-4 shadow-1 border-round-2xl">
+        <ng-template pTemplate="title">Titular vinculado al contrato</ng-template>
+        <ng-template pTemplate="subtitle">
+          Busca por número de cédula para confirmar a qué titular aplica este contrato.
+        </ng-template>
+
+        @if (!foundSubject()) {
+          <div class="flex flex-column gap-3 mt-3">
+            <div class="flex gap-3">
+              <input pInputText
+                     [ngModel]="searchId()"
+                     (ngModelChange)="searchId.set($event)"
+                     [ngModelOptions]="{standalone: true}"
+                     placeholder="Número de cédula del titular..."
+                     class="flex-1"
+                     (keyup.enter)="lookupSubject()"/>
+              <p-button label="Buscar" icon="pi pi-search" severity="contrast"
+                        [loading]="searching()" [disabled]="!searchId().trim()"
+                        (onClick)="lookupSubject()"/>
+            </div>
+            @if (searchError()) {
+              <p-message severity="error" [text]="searchError()" class="w-full"/>
+            }
+          </div>
+        }
+
+        @if (foundSubject()) {
+          <div class="flex align-items-center justify-content-between mt-3 p-3 border-round-lg surface-100">
+            <div class="flex align-items-center gap-3">
+              <i class="pi pi-user-check text-primary text-xl"></i>
+              <div class="flex flex-column gap-1">
+                <span class="font-semibold text-color">{{ foundSubject()!.maskedFullName }}</span>
+                <span class="text-sm text-color-secondary">{{ foundSubject()!.maskedEmail }}</span>
+              </div>
+            </div>
+            <p-button icon="pi pi-times" severity="secondary" [text]="true"
+                      (onClick)="clearSubject()" pTooltip="Cambiar titular"/>
+          </div>
+        }
+      </p-card>
+
+      <!-- Datos del encargado -->
+      <p-card class="mb-4 shadow-1 border-round-2xl">
+        <ng-template pTemplate="title">Datos del encargado</ng-template>
+        <div class="formgrid grid mt-3">
+          <div class="field col-12">
+            <label class="font-medium mb-2 block">Nombre de la empresa *</label>
+            <input pInputText formControlName="companyName" placeholder="Empresa S.A." class="w-full"/>
+            @if (form.get('companyName')?.invalid && form.get('companyName')?.touched) {
+              <small class="p-error block mt-1">Ingresa un nombre válido (mín. 3 caracteres).</small>
+            }
+          </div>
+          <div class="field col-12 md:col-6">
+            <label class="font-medium mb-2 block">Correo de contacto *</label>
+            <input pInputText formControlName="contactEmail" type="email"
+                   placeholder="contacto@empresa.com" class="w-full"/>
+            @if (form.get('contactEmail')?.invalid && form.get('contactEmail')?.touched) {
+              <small class="p-error block mt-1">Ingresa un correo válido.</small>
+            }
+          </div>
+          <div class="field col-12 md:col-6">
+            <label class="font-medium mb-2 block">Persona de contacto</label>
+            <input pInputText formControlName="contactPerson" placeholder="Nombre del responsable" class="w-full"/>
+          </div>
+          <div class="field col-12">
+            <label class="font-medium mb-2 block">Finalidad del tratamiento *</label>
+            <textarea pTextarea formControlName="purposeDescription" rows="3"
+                      placeholder="Describe para qué se usarán los datos..." class="w-full"></textarea>
+            @if (form.get('purposeDescription')?.invalid && form.get('purposeDescription')?.touched) {
+              <small class="p-error block mt-1">La descripción debe tener al menos 10 caracteres.</small>
+            }
+          </div>
+          <div class="field col-12 md:col-6">
+            <label class="font-medium mb-2 block">Válido desde *</label>
+            <p-datepicker formControlName="validFrom" dateFormat="dd/mm/yy"
+                          [showIcon]="true" appendTo="body" styleClass="w-full"/>
+          </div>
+          <div class="field col-12 md:col-6">
+            <label class="font-medium mb-2 block">Válido hasta *</label>
+            <p-datepicker formControlName="validUntil" dateFormat="dd/mm/yy"
+                          [showIcon]="true" appendTo="body" styleClass="w-full"/>
+          </div>
+        </div>
+      </p-card>
+
+      <!-- FIX: campos autorizados — solo toggleField en el checkbox, NO en el div -->
+      <p-card class="mb-4 shadow-1 border-round-2xl">
+        <ng-template pTemplate="title">Datos a los que tendrá acceso *</ng-template>
+        <ng-template pTemplate="subtitle">
+          Selecciona únicamente los campos necesarios (principio de minimización LOPDP).
+        </ng-template>
+        <div class="formgrid grid mt-3">
+          @for (field of availableFields; track field) {
+            <div class="field col-12 md:col-6">
+              <div class="surface-card border-1 surface-border border-round-xl p-3 transition-duration-200"
+                   [class.border-primary]="isFieldSelected(field)">
+                <div class="flex align-items-center gap-3">
+                  <p-checkbox
+                    [binary]="true"
+                    [ngModel]="isFieldSelected(field)"
+                    [ngModelOptions]="{standalone: true}"
+                    (onChange)="toggleField(field, $event.checked)"/>
+                  <span class="font-medium text-sm text-color">{{ fieldLabels[field] }}</span>
+                </div>
+              </div>
+            </div>
+          }
+        </div>
+        @if (hasNoFields()) {
+          <small class="p-error block mt-3">Selecciona al menos un campo autorizado.</small>
+        }
+      </p-card>
+      <div class="flex gap-3">
+        <p-button type="submit" label="Crear contrato" icon="pi pi-check"
+                  severity="contrast" [loading]="saving()" [disabled]="!foundSubject()"/>
+        <p-button label="Cancelar" icon="pi pi-times" severity="secondary"
+                  [outlined]="true" routerLink="/part-contracts"/>
+      </div>
+    </form>
+  </div>
+</div>

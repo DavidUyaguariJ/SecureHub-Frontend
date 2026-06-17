@@ -1,0 +1,46 @@
+<div class="flex flex-column w-full" style="min-height: calc(100vh - 4rem);">
+
+  <p-card styleClass="m-4 mb-2">
+    <div class="flex align-items-center gap-3">
+      <p-avatar icon="pi pi-user" shape="circle" size="xlarge"></p-avatar>
+      <div class="flex flex-column gap-2">
+        <small class="text-color-secondary">{{ greeting() }}</small>
+        <h2 class="m-0">{{ username() }}</h2>
+        <p-tag [value]="roleLabel()" severity="info"></p-tag>
+      </div>
+    </div>
+  </p-card>
+
+  <div class="m-4 mt-2">
+    <h3 class="mb-3">Accesos rápidos</h3>
+
+    @if (quickAccess().length === 0) {
+      <p-card>
+        <div class="flex align-items-center gap-3 text-color-secondary">
+          <i class="pi pi-info-circle text-xl"></i>
+          <span>No tienes módulos asignados todavía. Contacta a un administrador.</span>
+        </div>
+      </p-card>
+    } @else {
+      <div class="grid">
+        @for (item of quickAccess(); track item.route) {
+          <div class="col-12 md:col-6 lg:col-4">
+            <p-card styleClass="h-full cursor-pointer" (click)="navigateTo(item.route)">
+              <div class="flex align-items-start gap-3">
+                <p-tag [severity]="item.severity" [rounded]="true">
+                  <i [class]="item.icon"></i>
+                </p-tag>
+                <div class="flex flex-column gap-1 flex-1">
+                  <span class="font-semibold">{{ item.label }}</span>
+                  <small class="text-color-secondary">{{ item.description }}</small>
+                </div>
+                <i class="pi pi-arrow-right text-color-secondary"></i>
+              </div>
+            </p-card>
+          </div>
+        }
+      </div>
+    }
+  </div>
+
+</div>

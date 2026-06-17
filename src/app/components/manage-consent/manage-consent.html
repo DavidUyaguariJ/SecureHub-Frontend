@@ -1,0 +1,242 @@
+<p-toast />
+<p-confirmDialog />
+
+@if (loading()) {
+  <div class="fixed top-0 left-0 w-full h-full flex align-items-center
+              justify-content-center z-5"
+       style="background: rgba(0,0,0,0.4)">
+    <div class="surface-card border-round-xl p-5 flex flex-column
+                align-items-center gap-3 shadow-5">
+      <p-progressSpinner strokeWidth="4" style="width:60px;height:60px" />
+      <span class="font-semibold text-lg">Guardando registro...</span>
+    </div>
+  </div>
+}
+<div class="flex justify-content-center p-4">
+  <p-card header="Registro de Cumplimiento"
+          class="w-full md:w-10 lg:w-8 xl:w-7 shadow-3 border-round-2xl">
+    <form (submit)="onSubmit($event)" class="p-fluid formgrid grid">
+      <div class="col-12 mb-2">
+        <h3 class="text-900 font-semibold m-0">
+          <i class="pi pi-user mr-2 text-primary"></i>Información General
+        </h3>
+        <p-divider />
+      </div>
+      <div class="col-12 md:col-6 field">
+        <label class="font-medium">Identificación <span class="text-red-500">*</span></label>
+        <input pInputText class="w-full"
+               inputmode="numeric"
+               [formField]="subjectForm.identification"
+               placeholder="CI o RUC" />
+        @if (subjectForm.identification().invalid() && subjectForm.identification().touched()) {
+          @for (err of subjectForm.identification().errors(); track err) {
+            <small class="text-red-500 block mt-1">{{ err.message }}</small>
+          }
+        }
+      </div>
+      <div class="col-12 md:col-6 field">
+        <label class="font-medium">Nombre Completo / Razón Social <span class="text-red-500">*</span></label>
+        <input pInputText class="w-full"
+               [formField]="subjectForm.fullName" />
+        @if (subjectForm.fullName().invalid() && subjectForm.fullName().touched()) {
+          @for (err of subjectForm.fullName().errors(); track err) {
+            <small class="text-red-500 block mt-1">{{ err.message }}</small>
+          }
+        }
+      </div>
+      <div class="col-12 md:col-6 field">
+        <label class="font-medium">Correo Electrónico <span class="text-red-500">*</span></label>
+        <input pInputText type="email" class="w-full"
+               [formField]="subjectForm.email"
+               placeholder="correo@ejemplo.com" />
+        @if (subjectForm.email().invalid() && subjectForm.email().touched()) {
+          @for (err of subjectForm.email().errors(); track err) {
+            <small class="text-red-500 block mt-1">{{ err.message }}</small>
+          }
+        }
+      </div>
+      <div class="col-12 md:col-6 field">
+        <label class="font-medium">Teléfono</label>
+        <input pInputText class="w-full"
+               [formField]="subjectForm.phone"
+               placeholder="0 99 999 9999" />
+      </div>
+      <div class="col-12 md:col-6 field">
+        <label class="font-medium">Dirección</label>
+        <input pInputText class="w-full"
+               [formField]="subjectForm.address" />
+      </div>
+      <div class="col-12 md:col-6 field">
+        <label class="font-medium">Tipo de Titular</label>
+        <select class="w-full p-inputtext"
+                [formField]="subjectForm.subjectType">
+          <option value="PERSONA">PERSONA</option>
+          <option value="EMPRESA">EMPRESA</option>
+        </select>
+      </div>
+      @if (isEmpresa()) {
+        <div class="col-12 field">
+          <label class="font-medium">Persona de Contacto</label>
+          <input pInputText class="w-full"
+                 [formField]="subjectForm.contactPerson"
+                 placeholder="Representante legal o contacto principal" />
+        </div>
+      }
+      <div class="col-12 mt-3 mb-2">
+        <div class="flex align-items-center justify-content-between">
+          <h3 class="text-900 font-semibold m-0">
+            <i class="pi pi-desktop mr-2 text-primary"></i>Dispositivos
+          </h3>
+          <p-button label="Agregar Dispositivo"
+                    icon="pi pi-plus"
+                    severity="contrast"
+                    size="small"
+                    (onClick)="openAddDevice()" />
+        </div>
+        <p-divider />
+      </div>
+
+      <div class="col-12">
+        @if (devices().length === 0) {
+          <div class="border-2 border-dashed border-round p-4 text-center text-color-secondary">
+            <i class="pi pi-desktop text-3xl mb-2 block"></i>
+            <p class="m-0">No hay dispositivos registrados. Agregue al menos uno.</p>
+          </div>
+        } @else {
+          <p-table [value]="devices()"
+                   styleClass="p-datatable-sm p-datatable-striped"
+                   [tableStyle]="{'min-width': '100%'}">
+            <ng-template pTemplate="header">
+              <tr>
+                <th>Tipo</th>
+                <th>Marca</th>
+                <th>Modelo</th>
+                <th>Serie</th>
+                <th>Usuario</th>
+                <th style="width:100px">Acciones</th>
+              </tr>
+            </ng-template>
+            <ng-template pTemplate="body" let-device let-i="rowIndex">
+              <tr>
+                <td>{{ device.deviceType }}</td>
+                <td>{{ device.brand || '—' }}</td>
+                <td>{{ device.model || '—' }}</td>
+                <td>{{ device.serialNumber }}</td>
+                <td>{{ device.systemUser || '—' }}</td>
+                <td>
+                  <div class="flex gap-1">
+                    <p-button icon="pi pi-pencil"
+                              severity="contrast"
+                              [text]="true"
+                              size="small"
+                              (onClick)="openEditDevice(i)" />
+                    <p-button icon="pi pi-trash"
+                              severity="danger"
+                              [text]="true"
+                              size="small"
+                              (onClick)="removeDevice(i)" />
+                  </div>
+                </td>
+              </tr>
+            </ng-template>
+          </p-table>
+        }
+      </div>
+      <div class="col-12 mt-3 mb-2">
+        <h3 class="text-900 font-semibold m-0">
+          <i class="pi pi-envelope mr-2 text-primary"></i>Acceso del Titular
+        </h3>
+        <p-divider />
+      </div>
+      <div class="col-12">
+        <div class="surface-100 border-round p-3 text-sm line-height-3">
+          <p class="m-0 font-medium text-900 mb-2">
+            <i class="pi pi-info-circle mr-1 text-primary"></i>
+            ¿Qué ocurre al registrar?
+          </p>
+          <ul class="m-0 pl-4 text-700" style="line-height:2">
+            <li>
+              Se enviará un correo electrónico para culminar el proceso de autorización y validación de datos.
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="col-12 mt-4">
+        <p-button type="submit"
+                  label="Registrar y Enviar Credenciales"
+                  icon="pi pi-send"
+                  severity="contrast"
+                  [loading]="loading()"
+                  styleClass="w-full" />
+      </div>
+
+    </form>
+  </p-card>
+</div>
+
+<p-dialog [header]="editingIndex() !== null ? 'Editar Dispositivo' : 'Agregar Dispositivo'"
+          [visible]="showDeviceDialog()"
+          (visibleChange)="showDeviceDialog.set($event)"
+          [modal]="true"
+          [style]="{ width: '480px' }"
+          [draggable]="false">
+  <div class="p-fluid formgrid grid mt-2">
+    <div class="col-12 md:col-6 field">
+      <label class="font-medium">Tipo <span class="text-red-500">*</span></label>
+      <input pInputText
+             [value]="currentDevice().deviceType"
+             (input)="updateDeviceField('deviceType', $any($event.target).value)"
+             placeholder="Ej: Laptop, Smartphone" />
+    </div>
+    <div class="col-12 md:col-6 field">
+      <label class="font-medium">Número de Serie <span class="text-red-500">*</span></label>
+      <input pInputText
+             [value]="currentDevice().serialNumber"
+             (input)="updateDeviceField('serialNumber', $any($event.target).value)"
+             placeholder="SN123456789" />
+    </div>
+    <div class="col-12 md:col-6 field">
+      <label class="font-medium">Marca</label>
+      <input pInputText
+             [value]="currentDevice().brand"
+             (input)="updateDeviceField('brand', $any($event.target).value)"
+             placeholder="Dell, Apple, HP..." />
+    </div>
+    <div class="col-12 md:col-6 field">
+      <label class="font-medium">Modelo</label>
+      <input pInputText
+             [value]="currentDevice().model"
+             (input)="updateDeviceField('model', $any($event.target).value)"
+             placeholder="XPS 15, MacBook Pro..." />
+    </div>
+    <div class="col-12 md:col-6 field">
+      <label class="font-medium">Usuario del Sistema</label>
+      <input pInputText
+             [value]="currentDevice().systemUser"
+             (input)="updateDeviceField('systemUser', $any($event.target).value)"
+             placeholder="admin, usuario..." />
+    </div>
+    <div class="col-12 md:col-6 field">
+      <label class="font-medium">Contraseña <span class="text-red-500">*</span></label>
+      <input pInputText type="password"
+             [value]="currentDevice().password"
+             (input)="updateDeviceField('password', $any($event.target).value)"
+             placeholder="Mínimo 8 caracteres" />
+      @if (currentDevice().password.length > 0 && currentDevice().password.length < 8) {
+        <small class="text-red-500">Mínimo 8 caracteres</small>
+      }
+    </div>
+  </div>
+  <ng-template pTemplate="footer">
+    <p-button label="Cancelar"
+              icon="pi pi-times"
+              severity="secondary"
+              [text]="true"
+              (onClick)="showDeviceDialog.set(false)" />
+    <p-button label="Guardar"
+              icon="pi pi-check"
+              severity="contrast"
+              (onClick)="saveDevice()" />
+  </ng-template>
+</p-dialog>

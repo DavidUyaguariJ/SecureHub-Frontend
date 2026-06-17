@@ -1,0 +1,252 @@
+<!-- src/app/components/arco-management/arco-manage/arco-manage.html -->
+<p-toast />
+
+<div class="flex justify-content-center p-4">
+  <p-card class="w-full shadow-3 border-round-2xl">
+    <ng-template pTemplate="header">
+      <div class="p-4 pb-0">
+        <div class="flex align-items-center justify-content-between flex-wrap gap-3">
+          <div class="flex align-items-center gap-3">
+            <i class="pi pi-list-check text-primary" style="font-size:2rem"></i>
+            <div>
+              <h2 class="text-900 font-bold m-0">Gestión de Solicitudes ARCO</h2>
+              <small class="text-color-secondary">Revise, apruebe o rechace solicitudes de derechos</small>
+            </div>
+          </div>
+          <div class="flex align-items-center gap-2">
+            <select class="p-inputtext text-sm"
+                    [value]="statusFilter()"
+                    (change)="statusFilter.set($any($event.target).value); loadRequests()">
+              @for (opt of statusOptions; track opt.value) {
+                <option [value]="opt.value">{{ opt.label }}</option>
+              }
+            </select>
+            <p-button icon="pi pi-refresh" severity="contrast" [rounded]="true" size="small"
+                      [loading]="listLoading()" (onClick)="loadRequests()" />
+          </div>
+        </div>
+        <p-divider />
+      </div>
+    </ng-template>
+
+    <p-table [value]="requests()" [loading]="listLoading()"
+             [paginator]="true" [rows]="10" [rowsPerPageOptions]="[10,25,50]"
+             [class]="'p-datatable-sm p-datatable-striped'"
+             [tableStyle]="{'min-width':'100%'}">
+      <ng-template pTemplate="header">
+        <tr>
+          <th>Titular</th>
+          <th>Tipo</th>
+          <th>Estado</th>
+          <th>Solicitado</th>
+          <th>Vence</th>
+          <th style="width:80px">Detalle</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-req>
+        <tr>
+          <td>{{ req.subjectFullName || '—' }}</td>
+          <td>{{ getRequestTypeLabel(req.requestType) }}</td>
+          <td>
+            <p-tag [value]="getStatusLabel(req.status)" [severity]="getSeverity(req.status)" />
+          </td>
+          <td>{{ req.requestedAt | date:'dd/MM/yyyy HH:mm' }}</td>
+          <td>
+            <span [ngClass]="isDuePassed(req) ? 'text-red-500 font-semibold' : ''">
+              {{ req.dueDate ? (req.dueDate | date:'dd/MM/yyyy') : '—' }}
+            </span>
+          </td>
+          <td>
+            <p-button icon="pi pi-eye" severity="contrast" [text]="true" size="small"
+                      [pTooltip]="'Ver detalle'" (onClick)="openDetail(req)" />
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="6" class="text-center text-color-secondary p-4">
+            No hay solicitudes registradas.
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+
+  </p-card>
+</div>
+<p-dialog header="Detalle de Solicitud"
+          [visible]="detailVisible()"
+          (visibleChange)="detailVisible.set($event)"
+          [style]="{width:'720px'}" [modal]="true" [draggable]="false">
+
+  @if (detailLoading()) {
+    <div class="flex justify-content-center p-5">
+      <p-progressSpinner strokeWidth="4" style="width:50px;height:50px" />
+    </div>
+  }
+
+  @if (selectedDetail(); as d) {
+    <div class="formgrid grid">
+      <div class="col-12 md:col-6 field">
+        <label class="font-medium text-color-secondary text-sm">Titular</label>
+        <p class="text-900 m-0">{{ d.request.subjectFullName || '—' }}</p>
+      </div>
+      <div class="col-12 md:col-6 field">
+        <label class="font-medium text-color-secondary text-sm">Tipo</label>
+        <p class="text-900 m-0">{{ getRequestTypeLabel(d.request.requestType) }}</p>
+      </div>
+      <div class="col-12 md:col-6 field">
+        <label class="font-medium text-color-secondary text-sm">Estado</label>
+        <div class="mt-1">
+          <p-tag [value]="getStatusLabel(d.request.status)" [severity]="getSeverity(d.request.status)" />
+        </div>
+      </div>
+      <div class="col-12 md:col-6 field">
+        <label class="font-medium text-color-secondary text-sm">Solicitado</label>
+        <p class="text-900 m-0">{{ d.request.requestedAt | date:'dd/MM/yyyy HH:mm' }}</p>
+      </div>
+      <div class="col-12 md:col-6 field">
+        <label class="font-medium text-color-secondary text-sm">Fecha límite</label>
+        <p class="text-900 m-0">{{ d.request.dueDate ? (d.request.dueDate | date:'dd/MM/yyyy') : '—' }}</p>
+      </div>
+      @if (d.request.resolvedAt) {
+        <div class="col-12 md:col-6 field">
+          <label class="font-medium text-color-secondary text-sm">Resuelto</label>
+          <p class="text-900 m-0">{{ d.request.resolvedAt | date:'dd/MM/yyyy HH:mm' }}</p>
+        </div>
+      }
+      @if (d.request.description) {
+        <div class="col-12 field">
+          <label class="font-medium text-color-secondary text-sm">
+            @if (d.request.requestType === 'RECTIFICACION') { Datos solicitados por el titular }
+            @else { Descripción }
+          </label>
+          <div class="surface-100 border-round p-3 text-sm line-height-3">{{ d.request.description }}</div>
+        </div>
+      }
+      @if (d.request.responseText) {
+        <div class="col-12 field">
+          <label class="font-medium text-color-secondary text-sm">Respuesta oficial</label>
+          <p class="text-900 m-0">{{ d.request.responseText }}</p>
+        </div>
+      }
+      @if (d.request.rejectedReason) {
+        <div class="col-12 field">
+          <label class="font-medium text-red-500 text-sm">Motivo de rechazo</label>
+          <p class="text-900 m-0">{{ d.request.rejectedReason }}</p>
+        </div>
+      }
+      <div class="col-12 mt-2">
+        <h4 class="text-900 font-semibold m-0 mb-2">
+          <i class="pi pi-history mr-2 text-primary"></i>Historial de acciones
+        </h4>
+        <p-divider class="mt-0" />
+        <p-timeline [value]="d.auditLogs">
+          <ng-template pTemplate="content" let-log>
+            <div class="pb-2">
+              <span class="font-semibold text-900">{{ log.action }}</span>
+              @if (log.newStatus) {
+                <p-tag [value]="getStatusLabel(log.newStatus)"
+                       [severity]="getSeverity(log.newStatus)" class="ml-2" />
+              }
+              <span class="text-color-secondary text-sm ml-2">{{ log.performedByRole }}</span>
+              @if (log.notes) {
+                <p class="text-sm text-color-secondary m-0 mt-1">{{ log.notes }}</p>
+              }
+              <p class="text-xs text-color-secondary m-0">{{ log.createdAt | date:'dd/MM/yyyy HH:mm' }}</p>
+            </div>
+          </ng-template>
+        </p-timeline>
+      </div>
+    </div>
+
+    <p-divider />
+    <div class="flex justify-content-end gap-2 flex-wrap">
+
+      @if (showProcessBtn(d.request)) {
+        <p-button label="Marcar en proceso" icon="pi pi-spinner" severity="secondary"
+                  (onClick)="openAction('process')" />
+      }
+
+      @if (showApproveRejectBtns(d.request)) {
+        <p-button label="Rechazar" icon="pi pi-times" severity="danger"
+                  (onClick)="openAction('reject')" />
+        <p-button label="Aprobar" icon="pi pi-check" severity="contrast"
+                  (onClick)="openAction('approve')" />
+      }
+
+      @if (showDownloadBtn(d.request)) {
+        <p-button label="Descargar respuesta PDF" icon="pi pi-file-pdf"
+                  severity="contrast"
+                  [loading]="downloadLoading()"
+                  (onClick)="downloadPdf(d.request.id)" />
+      }
+
+    </div>
+  }
+</p-dialog>
+
+<p-dialog [header]="actionType() === 'approve' ? 'Aprobar solicitud'
+                   : actionType() === 'reject'  ? 'Rechazar solicitud'
+                   : 'Marcar en proceso'"
+          [visible]="actionVisible()"
+          (visibleChange)="actionVisible.set($event)"
+          [style]="{width:'500px'}" [modal]="true" [draggable]="false">
+
+  @if (actionType() === 'process') {
+    <div class="border-round p-3 mb-3 text-sm">
+      <i class="pi pi-info-circle mr-2"></i>
+      La solicitud pasará a <strong>En proceso</strong>. Podrá aprobarla o rechazarla después.
+    </div>
+  }
+
+  @if (actionType() === 'approve') {
+    <!-- RECTIFICACION: el operador NO reingresa datos.
+         Los datos que solicitó el titular están en el campo Description del detalle.
+         Solo puede añadir una respuesta textual opcional. -->
+    <div class="field mb-3">
+      <label class="font-medium">
+        Respuesta oficial
+        <span class="text-color-secondary font-normal text-sm">(opcional)</span>
+      </label>
+      <textarea pTextarea rows="3" class="w-full"
+                placeholder="Puede añadir una respuesta o confirmación para el titular..."
+                [value]="responseText()"
+                (input)="responseText.set($any($event.target).value)">
+      </textarea>
+    </div>
+  }
+
+  @if (actionType() === 'reject') {
+    <div class="border-round p-3 mb-3 text-sm">
+      <i class="pi pi-exclamation-triangle mr-2 text-red-500"></i>
+      Indique claramente el motivo del rechazo para notificar al titular.
+    </div>
+    <div class="field">
+      <label class="font-medium">Motivo de rechazo <span class="text-red-500">*</span></label>
+      <textarea pTextarea rows="4" class="w-full"
+                placeholder="Indique el motivo por el que se rechaza la solicitud..."
+                [value]="rejectedReason()"
+                (input)="rejectedReason.set($any($event.target).value)">
+      </textarea>
+      @if (!rejectedReason().trim()) {
+        <small class="text-red-500">El motivo es obligatorio para rechazar.</small>
+      }
+    </div>
+  }
+
+  <ng-template pTemplate="footer">
+    <p-button label="Cancelar" icon="pi pi-times" severity="secondary" [text]="true"
+              (onClick)="actionVisible.set(false)" />
+    <p-button [label]="actionType() === 'approve' ? 'Confirmar aprobación'
+                      : actionType() === 'reject'  ? 'Confirmar rechazo'
+                      : 'Confirmar'"
+              [icon]="actionType() === 'approve' ? 'pi pi-check'
+                     : actionType() === 'reject'  ? 'pi pi-times'
+                     : 'pi pi-spinner'"
+              [severity]="actionType() === 'approve' ? 'contrast'
+                         : actionType() === 'reject'  ? 'danger' : 'secondary'"
+              [loading]="actionLoading()"
+              [disabled]="actionType() === 'reject' && !rejectedReason().trim()"
+              (onClick)="confirmAction()" />
+  </ng-template>
+</p-dialog>
